@@ -55,8 +55,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *
 
  */
-public class
-LDAPAuthenticator implements IAuthenticator
+public class LDAPAuthenticator implements IAuthenticator
 {
     private static final Logger logger = LoggerFactory.getLogger(LDAPAuthenticator.class);
 
@@ -320,7 +319,7 @@ LDAPAuthenticator implements IAuthenticator
         }
     }
 
-    public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
+    public SaslNegotiator newSaslNegotiator()
     {
         return new PlainTextSaslAuthenticator();
     }
