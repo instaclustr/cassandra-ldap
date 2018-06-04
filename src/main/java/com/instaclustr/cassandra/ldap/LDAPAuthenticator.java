@@ -20,27 +20,17 @@ package com.instaclustr.cassandra.ldap;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
-import javax.management.MBeanServer;
 import javax.naming.*;
 import javax.naming.directory.*;
 
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.benmanes.caffeine.cache.CacheLoader;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.apache.cassandra.auth.*;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateRoleStatement;
@@ -48,7 +38,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -61,15 +51,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *
  * Users that are disabled in LDAP can only be cleaned up manually, however this is not typically necessary as long as you
  * keep using LDAPAuthenticator, they will just needlessly fill up system_auth. As long as they are disabled in your LDAP
- * server, they cannot be authenticated with Cassandra (after expiring from the cache).
- *
- * A cache exists to stop us from spamming the LDAP server with requests. It only stores the DN of the user and should only be
- * populated if a user has successfully authenticated using LDAP previously. Expiry from the cache is configured through
- * the usual auth cache configuration option {@link Config#credentials_validity_in_ms }
+ * server, they cannot be authenticated with Cassandra.
  *
 
  */
-public class LDAPAuthenticator implements IAuthenticator
+public class
+LDAPAuthenticator implements IAuthenticator
 {
     private static final Logger logger = LoggerFactory.getLogger(LDAPAuthenticator.class);
 
@@ -107,9 +94,6 @@ public class LDAPAuthenticator implements IAuthenticator
     private Map<String, String> usernameToDN = new HashMap<>();
 
     private static final byte NUL = 0;
-
-    /** Cache to reduce trips to LDAP server. Does not cache passwords. See {@link CredentialsCache}. */
-    private CredentialsCache cache;
 
     public boolean requireAuthentication()
     {
@@ -153,7 +137,6 @@ public class LDAPAuthenticator implements IAuthenticator
         {
             throw new ConfigurationException("Failed to connect to LDAP server.", n);
         }
-        cache = new CredentialsCache();
     }
 
     public void setup()
@@ -283,28 +266,15 @@ public class LDAPAuthenticator implements IAuthenticator
 
             User user = new User(dn, password);
 
-            String cachedPass = cache.get(user);
-            // authDN will be called if we're not in cache, subsequently loading the cache for the given user.
-            if (cachedPass != null)
+            authDN(user);
+
+            if (!userExists(dn))
             {
-                if (!cachedPass.equals(password))
-                {
-                    // Password has changed, re-auth and store new password in cache (or fail). A bit dodgy because
-                    // we don't have access to cache.put(). This has a side-effect that a bad auth will invalidate the
-                    // cache for the user and the next auth for the user will have to re-populate the cache. tl;dr:
-                    // don't spam incorrect passwords (or let others spam them for your user).
-                    cache.invalidate(user);
-                    cache.get(user);
-                }
-
-                if (!userExists(dn))
-                {
-                    logger.debug("DN {} doesn't exist in {}.{}, creating new user", dn, SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
-                    createRole(dn);
-                }
-
-                return new AuthenticatedUser(dn);
+                logger.debug("DN {} doesn't exist in {}.{}, creating new user", dn, AuthKeyspace.NAME, AuthKeyspace.ROLES);
+                createRole(dn);
             }
+
+            return new AuthenticatedUser(dn);
         }
         catch (Exception e)
         {
@@ -315,7 +285,6 @@ public class LDAPAuthenticator implements IAuthenticator
             throw new SecurityException("Could not authenticate to directory server", e);
         }
 
-        return null; // should never be reached
     }
 
     public static void createRole(String dn)
@@ -323,8 +292,7 @@ public class LDAPAuthenticator implements IAuthenticator
         CreateRoleStatement createStmt = (CreateRoleStatement) QueryProcessor.getStatement(String.format(CREATE_ROLE_STMT, dn), state).statement;
         createStmt.execute(new QueryState(state),
                            QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
-                                                         Lists.newArrayList(ByteBufferUtil.bytes(dn))),
-                           System.nanoTime());
+                                                         Lists.newArrayList(ByteBufferUtil.bytes(dn))));
     }
 
     /**
@@ -338,10 +306,9 @@ public class LDAPAuthenticator implements IAuthenticator
         if (existingUsers.contains(dn))
             return true;
 
-        SelectStatement selStmt = (SelectStatement) QueryProcessor.getStatement(String.format(FIND_USER_STMT, ROLE, SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES), state).statement;
+        SelectStatement selStmt = (SelectStatement) QueryProcessor.getStatement(String.format(FIND_USER_STMT, ROLE, AuthKeyspace.NAME, AuthKeyspace.ROLES), state).statement;
         ResultMessage.Rows rows = selStmt.execute(new QueryState(state),
-                                                  QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE, Lists.newArrayList(ByteBufferUtil.bytes(dn))),
-                                                  System.nanoTime());
+                                                  QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE, Lists.newArrayList(ByteBufferUtil.bytes(dn))));
         if (rows.result.isEmpty())
         {
             return false;
@@ -351,11 +318,6 @@ public class LDAPAuthenticator implements IAuthenticator
             existingUsers.add(dn);
             return true;
         }
-    }
-
-    protected CredentialsCache getCache()
-    {
-        return cache;
     }
 
     public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
@@ -439,107 +401,6 @@ public class LDAPAuthenticator implements IAuthenticator
             username = new String(user, StandardCharsets.UTF_8);
             password = new String(pass, StandardCharsets.UTF_8);
         }
-    }
-
-    protected class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
-    {
-
-        private CacheLoader<User, String> loader;
-        private LoadingCache<User, String> cacheRef;
-
-        private CredentialsCache()
-        {
-            super("CredentialsCache",
-                  DatabaseDescriptor::setCredentialsValidity,
-                  DatabaseDescriptor::getCredentialsValidity,
-                  DatabaseDescriptor::setCredentialsUpdateInterval,
-                  DatabaseDescriptor::getCredentialsUpdateInterval,
-                  DatabaseDescriptor::setCredentialsCacheMaxEntries,
-                  DatabaseDescriptor::getCredentialsCacheMaxEntries,
-                  null,
-                  () -> true);
-        }
-
-        public void invalidateCredentials(String username)
-        {
-            invalidate(new User(username, ""));
-        }
-
-        @Override
-        public void invalidate()
-        {
-            cacheRef.invalidateAll();
-        }
-
-        /**
-         * Overriding so that we can initialise {@link AuthCache#cache} with a {@link CacheLoader} rather than a Function
-         * Unfortunately because cache was made private and used all over the place we can't simply override cache
-         * and instead we have to modify it with reflection. init() and initCache() should only be called rarely
-         * (once per startup, really) so there should be no performance impact, and if something goes wrong we'll
-         * catch it at startup - but for the most part the API for AuthCache shouldn't change in any released versions
-         * and we'll be aiming to fix this in 4.0.
-         */
-        protected void init()
-        {
-            Class<?> ac = this.getClass().getSuperclass();
-            loader = user -> authDN(user);
-            try
-            {
-                Field fcache = ac.getDeclaredField("cache");
-                fcache.setAccessible(true);
-                fcache.set(this, initCache(null));
-            }
-            catch (NoSuchFieldException | IllegalAccessException e)
-            {
-                throw new RuntimeException(e);
-            }
-
-            try
-            {
-                MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-                mbs.registerMBean(this, getObjectName());
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        private LoadingCache initCache(LoadingCache<User, String> existing)
-        {
-            if (getValidity() <= 0)
-                return null;
-
-            logger.info("(Re)initializing {} (validity period/update interval/max entries) ({}/{}/{})",
-                        "CredentialsCache", getValidity(), getUpdateInterval(), getMaxEntries());
-
-            if (existing == null) {
-                LoadingCache c = Caffeine.newBuilder()
-                               .refreshAfterWrite(getUpdateInterval(), TimeUnit.MILLISECONDS)
-                               .expireAfterWrite(getValidity(), TimeUnit.MILLISECONDS)
-                               .maximumSize(getMaxEntries())
-                               .executor(MoreExecutors.directExecutor())
-                               .build(loader);
-                cacheRef = c;
-                return c;
-            }
-
-            // Always set as manditory
-            existing.policy().refreshAfterWrite().ifPresent(policy ->
-                                                         policy.setExpiresAfter(getUpdateInterval(), TimeUnit.MILLISECONDS));
-            existing.policy().expireAfterWrite().ifPresent(policy ->
-                                                        policy.setExpiresAfter(getValidity(), TimeUnit.MILLISECONDS));
-            existing.policy().eviction().ifPresent(policy ->
-                                                policy.setMaximum(getMaxEntries()));
-            cacheRef = existing;
-            return existing;
-        }
-
-    }
-
-    public static interface CredentialsCacheMBean extends AuthCacheMBean
-    {
-        public void invalidateCredentials(String username);
     }
 
     public static class User
