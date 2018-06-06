@@ -23,10 +23,15 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import javax.management.MBeanServer;
 import javax.naming.*;
 import javax.naming.directory.*;
 
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +85,7 @@ public class LDAPAuthenticator implements IAuthenticator
 
     public final static String DEFAULT_SUPERUSER_NAME = "cassandra";
 
-    private final static ClientState state = ClientState.forInternalCalls();
+    private static ClientState state;
 
     private String serviceDN;
     private String servicePass;
@@ -106,40 +111,6 @@ public class LDAPAuthenticator implements IAuthenticator
 
     public void validateConfiguration() throws ConfigurationException
     {
-
-        state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
-        try
-        {
-            if (properties.getProperty(ANONYMOUS_ACCESS_PROP, "false").equalsIgnoreCase("true"))
-            {
-                // Anonymous
-                serviceContext = new InitialDirContext(properties);
-                state.login(new AuthenticatedUser(DEFAULT_SERVICE_ROLE));
-            }
-            else
-            {
-                //connect with provided DN/PW
-                serviceDN = properties.getProperty(LDAP_DN);
-                servicePass = properties.getProperty(PASSWORD_KEY);
-                if (serviceDN == null || servicePass == null)
-                    throw new ConfigurationException(String.format("You must specify both %s and %s if %s is false.", LDAP_DN, PASSWORD_KEY, ANONYMOUS_ACCESS_PROP));
-                properties.put(Context.SECURITY_PRINCIPAL, serviceDN);
-                properties.put(Context.SECURITY_CREDENTIALS, servicePass);
-
-                serviceContext = new InitialDirContext(properties);
-                createRole(serviceDN);
-                state.login(new AuthenticatedUser(serviceDN));
-
-            }
-        }
-        catch (NamingException n)
-        {
-            throw new ConfigurationException("Failed to connect to LDAP server.", n);
-        }
-    }
-
-    public void setup()
-    {
         properties = new Properties();
         properties.put(Context.SECURITY_AUTHENTICATION, "simple");
         properties.put("com.sun.jndi.ldap.read.timeout", "1000");
@@ -160,6 +131,62 @@ public class LDAPAuthenticator implements IAuthenticator
 
         properties.put(Context.INITIAL_CONTEXT_FACTORY, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
         properties.put(Context.PROVIDER_URL, properties.getProperty(LDAP_URI_PROP));
+    }
+
+    public void setup()
+    {
+        state = ClientState.forInternalCalls();
+        try {
+            state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
+        }
+        catch (AuthenticationException a)
+        {
+            // If we got here it was likely the first node in the clusters first startup, and we need to
+            // sleep to ensure superuser and auth has been set up before we try login.
+            Uninterruptibles.sleepUninterruptibly(AuthKeyspace.SUPERUSER_SETUP_DELAY + 100, TimeUnit.MILLISECONDS);
+            state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
+        }
+
+        if (!(CassandraAuthorizer.class.isAssignableFrom(DatabaseDescriptor.getAuthorizer().getClass())))
+            throw new ConfigurationException("LDAPAuthenticator only works with CassandraAuthorizer");
+        try
+        {
+            if (properties.getProperty(ANONYMOUS_ACCESS_PROP, "false").equalsIgnoreCase("true"))
+            {
+                // Anonymous
+                serviceContext = new InitialDirContext(properties);
+                state.login(new AuthenticatedUser(DEFAULT_SERVICE_ROLE));
+            }
+            else
+            {
+                //connect with provided DN/PW
+                serviceDN = properties.getProperty(LDAP_DN);
+                servicePass = properties.getProperty(PASSWORD_KEY);
+                if (serviceDN == null || servicePass == null)
+                    throw new ConfigurationException(String.format("You must specify both %s and %s if %s is false.", LDAP_DN, PASSWORD_KEY, ANONYMOUS_ACCESS_PROP));
+                properties.put(Context.SECURITY_PRINCIPAL, serviceDN);
+                properties.put(Context.SECURITY_CREDENTIALS, servicePass);
+
+                serviceContext = new InitialDirContext(properties);
+
+                if (!userExists(serviceDN))
+                {
+                    QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login) " +
+                                    "VALUES ('%s', true, true)",
+                                AuthKeyspace.NAME,
+                                AuthKeyspace.ROLES,
+                                serviceDN
+                            ),
+                            ConsistencyLevel.QUORUM
+                    );
+                }
+                state.login(new AuthenticatedUser(serviceDN));
+            }
+        }
+        catch (NamingException n)
+        {
+            throw new ConfigurationException("Failed to connect to LDAP server.", n);
+        }
     }
 
     /**
@@ -254,9 +281,11 @@ public class LDAPAuthenticator implements IAuthenticator
      */
     public AuthenticatedUser authenticate(String username, String password) throws AuthenticationException
     {
+        String dn;
+
         try
         {
-            String dn = getUid(username);
+            dn = getUid(username);
             if (dn == null)
             {
                 throw new AuthenticationException("Could not authenticate to directory server using provided credentials");
@@ -275,13 +304,14 @@ public class LDAPAuthenticator implements IAuthenticator
 
             return new AuthenticatedUser(dn);
         }
-        catch (Exception e)
+        catch (javax.naming.AuthenticationException e)
         {
-            if(e.getCause() instanceof javax.naming.AuthenticationException)
-            {
-                throw new AuthenticationException(((javax.naming.AuthenticationException) e.getCause()).getExplanation());
-            }
-            throw new SecurityException("Could not authenticate to directory server", e);
+            logger.warn("Failed login from {}, reason was {}", username, e.getMessage());
+            throw new AuthenticationException("Failed to authenticate with directory server, user may not exist");
+        }
+        catch (NamingException e)
+        {
+            throw new SecurityException("Could not authenticate to the LDAP directory", e);
         }
 
     }
