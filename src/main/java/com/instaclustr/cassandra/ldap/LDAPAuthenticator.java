@@ -39,9 +39,6 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-//import com.github.benmanes.caffeine.cache.CacheLoader;
-//import com.github.benmanes.caffeine.cache.Caffeine;
-//import com.github.benmanes.caffeine.cache.LoadingCache;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
