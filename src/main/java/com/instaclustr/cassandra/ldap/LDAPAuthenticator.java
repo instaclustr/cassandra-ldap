@@ -246,7 +246,6 @@ public class LDAPAuthenticator implements IAuthenticator
      * @param user {@link User} to authenticate
      * @return True if we successfully authenticated.
      * @throws NamingException if authentication fails or other error occurs.
-     * TODO: Hash that shit and store it hashed
      */
     private String authDN(User user) throws NamingException {
         Hashtable env = getUserEnv();
