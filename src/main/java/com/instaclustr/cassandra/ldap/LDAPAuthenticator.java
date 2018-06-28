@@ -34,6 +34,7 @@ import javax.naming.directory.*;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,10 +93,16 @@ public class LDAPAuthenticator implements IAuthenticator
     public final static String LDAP_PROPERTIES_FILENAME = "ldap.properties";
     // Just to support those not using "cn"
     public final static String NAMING_ATTRIBUTE_PROP = "ldap_naming_attribute";
-
+    public final static String CACHE_HASHED_PASSWORD_PROP = "cache_hashed_password";
     public final static String DEFAULT_SUPERUSER_NAME = "cassandra";
 
     private static ClientState state;
+    private static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
+    private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
+
+    // Hash the password we store in the cache. Will incur a performance penalty, but necessary if you don't want
+    // passwords stored in the clear on the Cassandra nodes in the cache.
+    private static boolean hashPassword;
 
     private String serviceDN;
     private String servicePass;
@@ -109,8 +116,41 @@ public class LDAPAuthenticator implements IAuthenticator
 
     private static final byte NUL = 0;
 
-    /** Cache to reduce trips to LDAP server. Does not cache passwords. See {@link CredentialsCache}. */
+    /** Cache to reduce trips to LDAP server. See {@link CredentialsCache}. */
     private CredentialsCache cache;
+
+    static int getGensaltLogRounds()
+    {
+        int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
+        if (rounds < 4 || rounds > 31)
+            throw new ConfigurationException(String.format("Bad value for system property -D%s." +
+                            "Please use a value between 4 and 31 inclusively",
+                    GENSALT_LOG2_ROUNDS_PROPERTY));
+        return rounds;
+    }
+
+    private static String hashpw(String password)
+    {
+        return BCrypt.hashpw(password, BCrypt.gensalt(GENSALT_LOG2_ROUNDS));
+    }
+
+    protected static boolean checkpw(String password, String cached)
+    {
+        if (hashPassword)
+        {
+            try {
+                return BCrypt.checkpw(password, cached);
+            } catch (Exception e) {
+                // Improperly formatted hashes may cause BCrypt.checkpw to throw, so trap any other exception as a failure
+                logger.warn("Error: invalid password hash encountered, rejecting user", e);
+                return false;
+            }
+        }
+        else
+        {
+            return password.equals(cached);
+        }
+    }
 
     public boolean requireAuthentication()
     {
@@ -202,6 +242,10 @@ public class LDAPAuthenticator implements IAuthenticator
         {
             throw new ConfigurationException("Failed to connect to LDAP server.", n);
         }
+
+        if (properties.getProperty(CACHE_HASHED_PASSWORD_PROP, "false").equalsIgnoreCase("true"))
+            hashPassword = true;
+
         cache = new CredentialsCache();
     }
 
@@ -262,7 +306,6 @@ public class LDAPAuthenticator implements IAuthenticator
      * @param user {@link User} to authenticate
      * @return True if we successfully authenticated.
      * @throws NamingException if authentication fails or other error occurs.
-     * TODO: Hash that shit and store it hashed
      */
     private String authDN(User user) throws NamingException {
         Hashtable env = getUserEnv();
@@ -284,7 +327,10 @@ public class LDAPAuthenticator implements IAuthenticator
                 catch (NamingException n) {}
             }
         }
-        return user.password;
+        if (hashPassword)
+            return hashpw(user.password);
+        else
+            return user.password;
     }
 
     /**
@@ -311,10 +357,11 @@ public class LDAPAuthenticator implements IAuthenticator
             User user = new User(dn, password);
 
             String cachedPass = cache.get(user);
+
             // authDN will be called if we're not in cache, subsequently loading the cache for the given user.
             if (cachedPass != null)
             {
-                if (!cachedPass.equals(password))
+                if (!checkpw(password, cachedPass))
                 {
                     // Password has changed, re-auth and store new password in cache (or fail). A bit dodgy because
                     // we don't have access to cache.put(). This has a side-effect that a bad auth will invalidate the
@@ -561,7 +608,7 @@ public class LDAPAuthenticator implements IAuthenticator
 
     }
 
-    public static interface CredentialsCacheMBean extends AuthCacheMBean
+    public interface CredentialsCacheMBean extends AuthCacheMBean
     {
         public void invalidateCredentials(String username);
     }
