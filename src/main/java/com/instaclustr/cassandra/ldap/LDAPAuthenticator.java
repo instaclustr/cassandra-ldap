@@ -20,27 +20,24 @@ package com.instaclustr.cassandra.ldap;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import javax.management.MBeanServer;
 import javax.naming.*;
 import javax.naming.directory.*;
 
-import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.mindrot.jbcrypt.BCrypt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -308,7 +305,7 @@ public class LDAPAuthenticator implements IAuthenticator
      * @return True if we successfully authenticated.
      * @throws NamingException if authentication fails or other error occurs.
      */
-    private String authDN(User user) throws NamingException {
+    private String authDN(User user) throws LDAPAuthFailedException {
         Hashtable env = getUserEnv();
         env.put(Context.SECURITY_PRINCIPAL, user.username);
         env.put(Context.SECURITY_CREDENTIALS, user.password);
@@ -316,6 +313,10 @@ public class LDAPAuthenticator implements IAuthenticator
         try
         {
             ctx = new InitialDirContext(env);
+        }
+        catch (NamingException n)
+        {
+            throw new LDAPAuthFailedException(ExceptionCode.BAD_CREDENTIALS, n.getMessage(), n);
         }
         finally
         {
@@ -381,12 +382,19 @@ public class LDAPAuthenticator implements IAuthenticator
                 return new AuthenticatedUser(dn);
             }
         }
-        catch (javax.naming.AuthenticationException | ExecutionException e)
+        catch (UncheckedExecutionException e)
         {
-            logger.warn("Failed login from {}, reason was {}", username, e.getMessage());
-            throw new AuthenticationException("Failed to authenticate with directory server, user may not exist");
+            if (e.getCause() instanceof LDAPAuthFailedException)
+            {
+                logger.warn("Failed login from {}, reason was {}", username, e.getMessage());
+                throw new AuthenticationException("Failed to authenticate with directory server, user may not exist");
+            }
+            else
+            {
+                throw e;
+            }
         }
-        catch (NamingException e)
+        catch (NamingException | ExecutionException e)
         {
             throw new SecurityException("Could not authenticate to the LDAP directory", e);
         }
@@ -517,96 +525,24 @@ public class LDAPAuthenticator implements IAuthenticator
         }
     }
 
-    protected class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
-    {
+    protected class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean {
 
-        private LoadingCache<User, String> cacheRef;
 
-        private CredentialsCache()
-        {
+        private CredentialsCache() {
             super("CredentialsCache",
-                  DatabaseDescriptor::setCredentialsValidity,
-                  DatabaseDescriptor::getCredentialsValidity,
-                  DatabaseDescriptor::setCredentialsUpdateInterval,
-                  DatabaseDescriptor::getCredentialsUpdateInterval,
-                  DatabaseDescriptor::setCredentialsCacheMaxEntries,
-                  DatabaseDescriptor::getCredentialsCacheMaxEntries,
-                  null,
-                  () -> true);
+                    DatabaseDescriptor::setCredentialsValidity,
+                    DatabaseDescriptor::getCredentialsValidity,
+                    DatabaseDescriptor::setCredentialsUpdateInterval,
+                    DatabaseDescriptor::getCredentialsUpdateInterval,
+                    DatabaseDescriptor::setCredentialsCacheMaxEntries,
+                    DatabaseDescriptor::getCredentialsCacheMaxEntries,
+                    LDAPAuthenticator.this::authDN,
+                    () -> true);
         }
 
-        public void invalidateCredentials(String username)
-        {
+        public void invalidateCredentials(String username) {
             invalidate(new User(username, ""));
         }
-
-        @Override
-        public void invalidate()
-        {
-            cacheRef.invalidateAll();
-        }
-
-        /**
-         * Overriding so that we can initialise {@link AuthCache#cache} with a {@link CacheLoader} rather than a Function
-         * Unfortunately because cache was made private and used all over the place we can't simply override cache
-         * and instead we have to modify it with reflection. init() and initCache() should only be called rarely
-         * (once per startup, really) so there should be no performance impact, and if something goes wrong we'll
-         * catch it at startup - but for the most part the API for AuthCache shouldn't change in any released versions
-         * and we'll be aiming to fix this in 4.0.
-         */
-        protected void init()
-        {
-            Class<?> ac = this.getClass().getSuperclass();
-            try
-            {
-                Field fcache = ac.getDeclaredField("cache");
-                fcache.setAccessible(true);
-                fcache.set(this, initCache(null));
-            }
-            catch (NoSuchFieldException | IllegalAccessException e)
-            {
-                throw new RuntimeException(e);
-            }
-
-            try
-            {
-                MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-                mbs.registerMBean(this, getObjectName());
-            }
-            catch (Exception e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
-
-        private LoadingCache initCache(LoadingCache<User, String> existing)
-        {
-            if (getValidity() <= 0)
-                return null;
-
-            logger.info("(Re)initializing {} (validity period/update interval/max entries) ({}/{}/{})",
-                        "CredentialsCache", getValidity(), getUpdateInterval(), getMaxEntries());
-
-            if (existing == null) {
-                LoadingCache c = CacheBuilder.newBuilder()
-                               .refreshAfterWrite(getUpdateInterval(), TimeUnit.MILLISECONDS)
-                               .expireAfterWrite(getValidity(), TimeUnit.MILLISECONDS)
-                               .maximumSize(getMaxEntries())
-                               .build(new CacheLoader<User, String>()
-                               {
-                                   @Override
-                                   public String load(User user) throws Exception {
-                                       return authDN(user);
-                                   }
-                               });
-                cacheRef = c;
-                return c;
-            }
-
-            cacheRef = existing;
-            return existing;
-        }
-
     }
 
     public interface CredentialsCacheMBean extends AuthCacheMBean
@@ -642,4 +578,18 @@ public class LDAPAuthenticator implements IAuthenticator
                     .toHashCode();
         }
     }
+
+    public static class LDAPAuthFailedException extends RequestExecutionException {
+
+        public LDAPAuthFailedException(ExceptionCode code, String msg)
+        {
+            super(code, msg);
+        }
+
+        public LDAPAuthFailedException(ExceptionCode code, String msg, Throwable t)
+        {
+            super(code, msg, t);
+        }
+    }
+
 }
