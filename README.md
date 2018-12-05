@@ -50,4 +50,6 @@ Credentials are sent from your client to the Cassandra server and then tested ag
 
 On successful authentication to LDAP a corresponding Cassandra user will be created (including for the service user who will be SUPERUSER). These users are never removed, as it is deemed cleanup is not necessary as long as auth is still handled by LDAP. Manual cleanup of users will work fine, and if they re-auth a replacement user will be created. Passwords are not stored in Cassandra, however on 3.11 and later will live in the credentials cache when used.
 
-
+## Further Information
+- See blog by Kurt Greaves ["Apache Cassandra LDAP Authentication"](https://www.instaclustr.com/apache-cassandra-ldap-authentication/)
+- Please see https://www.instaclustr.com/support/documentation/announcements/instaclustr-open-source-project-status/ for Instaclustr support status of this project
