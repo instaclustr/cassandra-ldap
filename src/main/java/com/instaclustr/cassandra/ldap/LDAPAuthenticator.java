@@ -15,32 +15,41 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.instaclustr.cassandra.ldap;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import javax.naming.*;
-import javax.naming.directory.*;
 
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.UncheckedExecutionException;
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.exceptions.ExceptionCode;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-import org.mindrot.jbcrypt.BCrypt;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import javax.naming.Context;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
+import javax.naming.directory.SearchControls;
+import javax.naming.directory.SearchResult;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthCache;
+import org.apache.cassandra.auth.AuthCacheMBean;
+import org.apache.cassandra.auth.AuthKeyspace;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CassandraAuthorizer;
+import org.apache.cassandra.auth.IAuthenticator;
+import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateRoleStatement;
@@ -48,11 +57,20 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.exceptions.ExceptionCode;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.mindrot.jbcrypt.BCrypt;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 /**
  * Uses JNDI to authenticate to an LDAP server. On successful authentication a Cassandra role is created for the provided
@@ -66,8 +84,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * A cache exists to stop us from spamming the LDAP server with requests. It only stores the DN of the user and should only be
  * populated if a user has successfully authenticated using LDAP previously. Expiry from the cache is configured through
  * the usual auth cache configuration option {@link Config#credentials_validity_in_ms }
- *
-
  */
 public class LDAPAuthenticator implements IAuthenticator
 {
@@ -114,7 +130,9 @@ public class LDAPAuthenticator implements IAuthenticator
 
     private static final byte NUL = 0;
 
-    /** Cache to reduce trips to LDAP server. See {@link CredentialsCache}. */
+    /**
+     * Cache to reduce trips to LDAP server. See {@link CredentialsCache}.
+     */
     private CredentialsCache cache;
 
     static int getGensaltLogRounds()
@@ -122,8 +140,8 @@ public class LDAPAuthenticator implements IAuthenticator
         int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
         if (rounds < 4 || rounds > 31)
             throw new ConfigurationException(String.format("Bad value for system property -D%s." +
-                            "Please use a value between 4 and 31 inclusively",
-                    GENSALT_LOG2_ROUNDS_PROPERTY));
+                                                               "Please use a value between 4 and 31 inclusively",
+                                                           GENSALT_LOG2_ROUNDS_PROPERTY));
         return rounds;
     }
 
@@ -136,15 +154,16 @@ public class LDAPAuthenticator implements IAuthenticator
     {
         if (hashPassword)
         {
-            try {
+            try
+            {
                 return BCrypt.checkpw(password, cached);
-            } catch (Exception e) {
+            } catch (Exception e)
+            {
                 // Improperly formatted hashes may cause BCrypt.checkpw to throw, so trap any other exception as a failure
                 logger.warn("Error: invalid password hash encountered, rejecting user", e);
                 return false;
             }
-        }
-        else
+        } else
         {
             return password.equals(cached);
         }
@@ -171,8 +190,7 @@ public class LDAPAuthenticator implements IAuthenticator
         try (FileInputStream input = new FileInputStream(System.getProperty(LDAP_PROPERTIES_FILE, LDAP_PROPERTIES_FILENAME)))
         {
             properties.load(input);
-        }
-        catch (IOException e)
+        } catch (IOException e)
         {
             throw new ConfigurationException("Could not open ldap configuration file", e);
         }
@@ -189,10 +207,10 @@ public class LDAPAuthenticator implements IAuthenticator
         state = ClientState.forInternalCalls();
         if (DatabaseDescriptor.getAuthorizer().requireAuthorization())
         {
-            try {
+            try
+            {
                 state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
-            }
-            catch (AuthenticationException a)
+            } catch (AuthenticationException a)
             {
                 // If we got here it was likely the first node in the clusters first startup, and we need to
                 // sleep to ensure superuser and auth has been set up before we try login.
@@ -209,8 +227,7 @@ public class LDAPAuthenticator implements IAuthenticator
                 // Anonymous
                 serviceContext = new InitialDirContext(properties);
                 state.login(new AuthenticatedUser(DEFAULT_SERVICE_ROLE));
-            }
-            else
+            } else
             {
                 //connect with provided DN/PW
                 serviceDN = properties.getProperty(LDAP_DN);
@@ -225,18 +242,17 @@ public class LDAPAuthenticator implements IAuthenticator
                 if (!userExists(serviceDN))
                 {
                     QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login) " +
-                                    "VALUES ('%s', true, true)",
-                                SchemaConstants.AUTH_KEYSPACE_NAME,
-                                AuthKeyspace.ROLES,
-                                serviceDN
-                            ),
-                            ConsistencyLevel.QUORUM
-                    );
+                                                             "VALUES ('%s', true, true)",
+                                                         SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                         AuthKeyspace.ROLES,
+                                                         serviceDN
+                                                        ),
+                                           ConsistencyLevel.QUORUM
+                                          );
                 }
                 state.login(new AuthenticatedUser(serviceDN));
             }
-        }
-        catch (NamingException n)
+        } catch (NamingException n)
         {
             throw new ConfigurationException("Failed to connect to LDAP server.", n);
         }
@@ -249,6 +265,7 @@ public class LDAPAuthenticator implements IAuthenticator
 
     /**
      * Generate a table of properties for connecting to LDAP server using JNDI
+     *
      * @return Table containing Context.INITIAL_CONTEXT_FACTORY, Context.PROVIDER_URL and Context.SECURITY_AUTHENTICATION set.
      */
     public Hashtable<String, String> getUserEnv()
@@ -262,9 +279,9 @@ public class LDAPAuthenticator implements IAuthenticator
 
     /**
      * Fetch a DN for a specific user
+     *
      * @param user Username (CN)
      * @return DN for user
-     * @throws NamingException
      */
     private String getUid(String user) throws NamingException
     {
@@ -288,8 +305,7 @@ public class LDAPAuthenticator implements IAuthenticator
         {
             SearchResult result = (SearchResult) answer.next();
             dn = result.getNameInNamespace();
-        }
-        else
+        } else
         {
             dn = null;
         }
@@ -301,11 +317,13 @@ public class LDAPAuthenticator implements IAuthenticator
 
     /**
      * Authenticate to LDAP server as provided DN
+     *
      * @param user {@link User} to authenticate
      * @return True if we successfully authenticated.
      * @throws NamingException if authentication fails or other error occurs.
      */
-    private String authDN(User user) throws LDAPAuthFailedException {
+    private String authDN(User user) throws LDAPAuthFailedException
+    {
         Hashtable env = getUserEnv();
         env.put(Context.SECURITY_PRINCIPAL, user.username);
         env.put(Context.SECURITY_CREDENTIALS, user.password);
@@ -313,20 +331,19 @@ public class LDAPAuthenticator implements IAuthenticator
         try
         {
             ctx = new InitialDirContext(env);
-        }
-        catch (NamingException n)
+        } catch (NamingException n)
         {
             throw new LDAPAuthFailedException(ExceptionCode.BAD_CREDENTIALS, n.getMessage(), n);
-        }
-        finally
+        } finally
         {
             if (ctx != null)
             {
                 try
                 {
                     ctx.close();
+                } catch (NamingException n)
+                {
                 }
-                catch (NamingException n) {}
             }
         }
         if (hashPassword)
@@ -338,6 +355,7 @@ public class LDAPAuthenticator implements IAuthenticator
     /**
      * Authenticate a user/password combo to the configured LDAP server. On the first successful auth a corresponding
      * C* role will be created.
+     *
      * @param username Username portion of the CN or UID. E.g "James Hook" in cn=James Hook,ou=people,o=sevenSeas
      * @param password Corresponding password
      * @return {@link AuthenticatedUser} for the DN as stored in C*.
@@ -381,20 +399,17 @@ public class LDAPAuthenticator implements IAuthenticator
 
                 return new AuthenticatedUser(dn);
             }
-        }
-        catch (UncheckedExecutionException e)
+        } catch (UncheckedExecutionException e)
         {
             if (e.getCause() instanceof LDAPAuthFailedException)
             {
                 logger.warn("Failed login from {}, reason was {}", username, e.getMessage());
                 throw new AuthenticationException("Failed to authenticate with directory server, user may not exist");
-            }
-            else
+            } else
             {
                 throw e;
             }
-        }
-        catch (NamingException | ExecutionException e)
+        } catch (NamingException | ExecutionException e)
         {
             throw new SecurityException("Could not authenticate to the LDAP directory", e);
         }
@@ -413,6 +428,7 @@ public class LDAPAuthenticator implements IAuthenticator
 
     /**
      * Check if a particular role exists in system.auth
+     *
      * @param dn user's distinguished name.
      * @return True if DN exists in C* roles otherwise false
      */
@@ -429,8 +445,7 @@ public class LDAPAuthenticator implements IAuthenticator
         if (rows.result.isEmpty())
         {
             return false;
-        }
-        else
+        } else
         {
             existingUsers.add(dn);
             return true;
@@ -495,7 +510,7 @@ public class LDAPAuthenticator implements IAuthenticator
          *
          * @param bytes encoded credentials string sent by the client
          * @throws org.apache.cassandra.exceptions.AuthenticationException if either the
-         *         authnId or password is null
+         *                                                                 authnId or password is null
          */
         private void decodeCredentials(byte[] bytes) throws AuthenticationException
         {
@@ -503,7 +518,7 @@ public class LDAPAuthenticator implements IAuthenticator
             byte[] user = null;
             byte[] pass = null;
             int end = bytes.length;
-            for (int i = bytes.length - 1 ; i >= 0; i--)
+            for (int i = bytes.length - 1; i >= 0; i--)
             {
                 if (bytes[i] == NUL)
                 {
@@ -525,22 +540,24 @@ public class LDAPAuthenticator implements IAuthenticator
         }
     }
 
-    protected class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean {
+    protected class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
+    {
 
-
-        private CredentialsCache() {
+        private CredentialsCache()
+        {
             super("CredentialsCache",
-                    DatabaseDescriptor::setCredentialsValidity,
-                    DatabaseDescriptor::getCredentialsValidity,
-                    DatabaseDescriptor::setCredentialsUpdateInterval,
-                    DatabaseDescriptor::getCredentialsUpdateInterval,
-                    DatabaseDescriptor::setCredentialsCacheMaxEntries,
-                    DatabaseDescriptor::getCredentialsCacheMaxEntries,
-                    LDAPAuthenticator.this::authDN,
-                    () -> true);
+                  DatabaseDescriptor::setCredentialsValidity,
+                  DatabaseDescriptor::getCredentialsValidity,
+                  DatabaseDescriptor::setCredentialsUpdateInterval,
+                  DatabaseDescriptor::getCredentialsUpdateInterval,
+                  DatabaseDescriptor::setCredentialsCacheMaxEntries,
+                  DatabaseDescriptor::getCredentialsCacheMaxEntries,
+                  LDAPAuthenticator.this::authDN,
+                  () -> true);
         }
 
-        public void invalidateCredentials(String username) {
+        public void invalidateCredentials(String username)
+        {
             invalidate(new User(username, ""));
         }
     }
@@ -572,14 +589,16 @@ public class LDAPAuthenticator implements IAuthenticator
         }
 
         @Override
-        public int hashCode() {
+        public int hashCode()
+        {
             return new HashCodeBuilder(19, 29)
-                    .append(username)
-                    .toHashCode();
+                .append(username)
+                .toHashCode();
         }
     }
 
-    public static class LDAPAuthFailedException extends RequestExecutionException {
+    public static class LDAPAuthFailedException extends RequestExecutionException
+    {
 
         public LDAPAuthFailedException(ExceptionCode code, String msg)
         {
@@ -591,5 +610,4 @@ public class LDAPAuthenticator implements IAuthenticator
             super(code, msg, t);
         }
     }
-
 }
