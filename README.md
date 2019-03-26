@@ -23,13 +23,19 @@ Configuration
 =============
 From the git repo, fill in and copy the `ldap.properties` file to some location ($CASSANDRA_CONF is a good one) on each of the nodes. This file is used for telling the authenticator details about the LDAP server and connection.
 
-Copy the created jar file to each node in your cluster, and append it to the CLASSPATH variable in the cassandra-env.sh/cassandra-env.ps1)
+Copy the created jar file to each node in your cluster, and append it to the CLASSPATH variable in the cassandra-env.sh/cassandra-env.ps1). It is enough to put that jar into 
+Cassandra's `lib` directory from where it will be picked up automatically.
 
     CLASSPATH="$CLASSPATH:/path/to/cassandra-ldap-3.11.2.jar"
 
-Also add the following option to the JVM options, pointing to the location of your ldap.properties file (on each node).
+Also add the following option to the JVM options, pointing to the location of your ldap.properties file (on each node). This is not necessary if you place `ldap.properties` into 
+`$CASSANDRA_CONF` directory as from there it will be picked up automatically (assuming `$CASSANDRA_CONF` is set in your system).
 
     JVM_OPTS="$JVM_OPTS -Dldap.properties.file=$CASSANDRA_CONF/ldap.properties"
+    
+You can achieve same behaviour with doing
+
+    $ ./cassandra -f -Dldap.properties.file=/where/is/my/ldap.properties
 
 In your `cassandra.yaml` configure the authenticator **and authorizer** like so:
 
@@ -40,6 +46,16 @@ Configure credential caching parameters in `cassandra.yaml`.
 [Re]start Cassandra.
 
 **WARNING** - Doing this on a live cluster should be handled with care. If done in a rolling fashion from PasswordAuthenticator (or some other implementation) connections to an LDAP configured node using non-ldap credentials will fail if usernames and passwords don't match, that is, nodes running LDAPAuthenticator will not be able to access Cassandra users that are *not* in LDAP. Safest method would be to either support both mechanisms in your application (handle failure with C* users) or switch to AllowAllAuthenticator (in a rolling fashion) prior to switching to LDAPAuthenticator.
+
+Example
+============
+
+For fast testing there is Debian OpenLDAP Docker container
+
+    docker run -e LDAP_ADMIN_PASSWORD=admin --rm -d -p 389:389 --name ldap1 osixia/openldap
+
+The `ldap.configuration` file in `conf` directory does not need to be changed and with the above `docker run`, it will work out of the box. You just 
+have to put it in `$CASSANDRA_CONF`.
 
 How it works
 ============

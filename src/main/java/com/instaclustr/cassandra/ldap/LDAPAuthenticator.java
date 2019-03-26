@@ -17,6 +17,7 @@
  */
 package com.instaclustr.cassandra.ldap;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -101,8 +102,7 @@ public class LDAPAuthenticator implements IAuthenticator
     // If no anonymous access a default DN and password is required.
     public final static String LDAP_DN = "service_dn";
     public final static String PASSWORD_KEY = "service_password";
-    public final static String CREATE_ROLE_STMT = "CREATE ROLE \"%s\" WITH LOGIN = true";
-    public final static String FIND_USER_STMT = "SELECT %s FROM %s.%s where role = ?";
+
     public final static String LDAP_PROPERTIES_FILE = "ldap.properties.file";
     public final static String LDAP_PROPERTIES_FILENAME = "ldap.properties";
     // Just to support those not using "cn"
@@ -111,6 +111,7 @@ public class LDAPAuthenticator implements IAuthenticator
     public final static String DEFAULT_SUPERUSER_NAME = "cassandra";
 
     private static ClientState state;
+
     private static final String GENSALT_LOG2_ROUNDS_PROPERTY = Config.PROPERTY_PREFIX + "auth_bcrypt_gensalt_log2_rounds";
     private static final int GENSALT_LOG2_ROUNDS = getGensaltLogRounds();
 
@@ -135,13 +136,17 @@ public class LDAPAuthenticator implements IAuthenticator
      */
     private CredentialsCache cache;
 
-    static int getGensaltLogRounds()
+    private static int getGensaltLogRounds()
     {
         int rounds = Integer.getInteger(GENSALT_LOG2_ROUNDS_PROPERTY, 10);
+
         if (rounds < 4 || rounds > 31)
-            throw new ConfigurationException(String.format("Bad value for system property -D%s." +
-                                                               "Please use a value between 4 and 31 inclusively",
-                                                           GENSALT_LOG2_ROUNDS_PROPERTY));
+        {
+            throw new ConfigurationException(String.format(
+                "Bad value for system property -D%s. Please use a value between 4 and 31 inclusively",
+                GENSALT_LOG2_ROUNDS_PROPERTY));
+        }
+
         return rounds;
     }
 
@@ -150,22 +155,32 @@ public class LDAPAuthenticator implements IAuthenticator
         return BCrypt.hashpw(password, BCrypt.gensalt(GENSALT_LOG2_ROUNDS));
     }
 
-    protected static boolean checkpw(String password, String cached)
+    /**
+     * Checks if passwords are same.
+     *
+     * @param firstPassword  plaintext password
+     * @param secondPassword possibly hashed password
+     * @return true if passwords equal, false otherwise
+     */
+    protected static boolean checkpw(String firstPassword, String secondPassword)
     {
         if (hashPassword)
         {
             try
             {
-                return BCrypt.checkpw(password, cached);
-            } catch (Exception e)
+                return BCrypt.checkpw(firstPassword, secondPassword);
+            }
+            catch (Exception ex)
             {
                 // Improperly formatted hashes may cause BCrypt.checkpw to throw, so trap any other exception as a failure
-                logger.warn("Error: invalid password hash encountered, rejecting user", e);
+                logger.warn("Error: invalid password hash encountered, rejecting user.", ex);
+
                 return false;
             }
-        } else
+        }
+        else
         {
-            return password.equals(cached);
+            return firstPassword.equals(secondPassword);
         }
     }
 
@@ -181,22 +196,76 @@ public class LDAPAuthenticator implements IAuthenticator
 
     public void validateConfiguration() throws ConfigurationException
     {
+
         properties = new Properties();
+
         properties.put(Context.SECURITY_AUTHENTICATION, "simple");
         properties.put("com.sun.jndi.ldap.read.timeout", "1000");
         properties.put("com.sun.jndi.ldap.connect.timeout", "2000");
         properties.put("com.sun.jndi.ldap.connect.pool", "true");
 
-        try (FileInputStream input = new FileInputStream(System.getProperty(LDAP_PROPERTIES_FILE, LDAP_PROPERTIES_FILENAME)))
+        final String cassandraConfEnvProperty = System.getenv().get("CASSANDRA_CONF");
+
+        File defaultLdapPropertyFile = null;
+
+        if (cassandraConfEnvProperty != null)
+        {
+            defaultLdapPropertyFile = new File(cassandraConfEnvProperty, "ldap.properties");
+        }
+
+        final File ldapPropertyFile = new File(System.getProperty(LDAP_PROPERTIES_FILE, LDAP_PROPERTIES_FILENAME));
+
+        File finalLdapPropertyFile = null;
+
+        if (ldapPropertyFile.exists() && ldapPropertyFile.canRead())
+        {
+            finalLdapPropertyFile = ldapPropertyFile;
+        }
+        else if (defaultLdapPropertyFile != null && defaultLdapPropertyFile.exists() && defaultLdapPropertyFile.canRead())
+        {
+            finalLdapPropertyFile = defaultLdapPropertyFile;
+        }
+
+        if (finalLdapPropertyFile == null)
+        {
+            throw new ConfigurationException(String.format(
+                "Unable to locate readable LDAP configuration file from system property %s nor from $CASSANDRA_CONF/ldap.properties.",
+                LDAP_PROPERTIES_FILE));
+        }
+        else
+        {
+            logger.info("LDAP configuration file: {}", finalLdapPropertyFile.getAbsoluteFile());
+        }
+
+        try (FileInputStream input = new FileInputStream(finalLdapPropertyFile))
         {
             properties.load(input);
-        } catch (IOException e)
+        }
+        catch (IOException ex)
         {
-            throw new ConfigurationException("Could not open ldap configuration file", e);
+            throw new ConfigurationException(String.format("Could not open ldap configuration file %s", finalLdapPropertyFile), ex);
         }
 
         if (!properties.containsKey(LDAP_URI_PROP))
-            throw new ConfigurationException(String.format("{0} MUST be set in the configuration file.", LDAP_URI_PROP));
+        {
+            throw new ConfigurationException(String.format("%s MUST be set in the configuration file %s",
+                                                           LDAP_URI_PROP,
+                                                           finalLdapPropertyFile.getAbsolutePath()));
+        }
+
+        serviceDN = properties.getProperty(LDAP_DN);
+        servicePass = properties.getProperty(PASSWORD_KEY);
+
+        if (!Boolean.parseBoolean(properties.getProperty(ANONYMOUS_ACCESS_PROP, "false"))) {
+
+            if (serviceDN == null || servicePass == null)
+            {
+                throw new ConfigurationException(String.format("You must specify both %s and %s if %s is false.",
+                                                               LDAP_DN,
+                                                               PASSWORD_KEY,
+                                                               ANONYMOUS_ACCESS_PROP));
+            }
+        }
 
         properties.put(Context.INITIAL_CONTEXT_FACTORY, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
         properties.put(Context.PROVIDER_URL, properties.getProperty(LDAP_URI_PROP));
@@ -204,36 +273,48 @@ public class LDAPAuthenticator implements IAuthenticator
 
     public void setup()
     {
+
+        if (!(CassandraAuthorizer.class.isAssignableFrom(DatabaseDescriptor.getAuthorizer().getClass())))
+        {
+            throw new ConfigurationException("LDAPAuthenticator only works with CassandraAuthorizer");
+        }
+
         state = ClientState.forInternalCalls();
+
         if (DatabaseDescriptor.getAuthorizer().requireAuthorization())
         {
             try
             {
                 state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
-            } catch (AuthenticationException a)
+            }
+            catch (AuthenticationException ex)
             {
                 // If we got here it was likely the first node in the clusters first startup, and we need to
                 // sleep to ensure superuser and auth has been set up before we try login.
-                Uninterruptibles.sleepUninterruptibly(AuthKeyspace.SUPERUSER_SETUP_DELAY + 100, TimeUnit.MILLISECONDS);
-                state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
+                Uninterruptibles.sleepUninterruptibly(20,
+                                                      TimeUnit.SECONDS);
+
+                try
+                {
+                    state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
+                }
+                catch (AuthenticationException aex)
+                {
+                    throw new ConfigurationException("Unable to perform initial login: " + ex.getMessage(), ex);
+                }
             }
         }
-        if (!(CassandraAuthorizer.class.isAssignableFrom(DatabaseDescriptor.getAuthorizer().getClass())))
-            throw new ConfigurationException("LDAPAuthenticator only works with CassandraAuthorizer");
+
         try
         {
-            if (properties.getProperty(ANONYMOUS_ACCESS_PROP, "false").equalsIgnoreCase("true"))
+            if (Boolean.parseBoolean(properties.getProperty(ANONYMOUS_ACCESS_PROP, "false")))
             {
                 // Anonymous
                 serviceContext = new InitialDirContext(properties);
                 state.login(new AuthenticatedUser(DEFAULT_SERVICE_ROLE));
-            } else
+            }
+            else
             {
-                //connect with provided DN/PW
-                serviceDN = properties.getProperty(LDAP_DN);
-                servicePass = properties.getProperty(PASSWORD_KEY);
-                if (serviceDN == null || servicePass == null)
-                    throw new ConfigurationException(String.format("You must specify both %s and %s if %s is false.", LDAP_DN, PASSWORD_KEY, ANONYMOUS_ACCESS_PROP));
                 properties.put(Context.SECURITY_PRINCIPAL, serviceDN);
                 properties.put(Context.SECURITY_CREDENTIALS, servicePass);
 
@@ -241,24 +322,26 @@ public class LDAPAuthenticator implements IAuthenticator
 
                 if (!userExists(serviceDN))
                 {
-                    QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login) " +
-                                                             "VALUES ('%s', true, true)",
-                                                         SchemaConstants.AUTH_KEYSPACE_NAME,
-                                                         AuthKeyspace.ROLES,
-                                                         serviceDN
-                                                        ),
-                                           ConsistencyLevel.QUORUM
-                                          );
+                    QueryProcessor
+                        .process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', true, true)",
+                                               SchemaConstants.AUTH_KEYSPACE_NAME,
+                                               AuthKeyspace.ROLES,
+                                               serviceDN),
+                                 ConsistencyLevel.QUORUM);
                 }
+
                 state.login(new AuthenticatedUser(serviceDN));
             }
-        } catch (NamingException n)
+        }
+        catch (NamingException ex)
         {
-            throw new ConfigurationException("Failed to connect to LDAP server.", n);
+            throw new ConfigurationException("Failed to connect to LDAP server.", ex);
         }
 
-        if (properties.getProperty(CACHE_HASHED_PASSWORD_PROP, "false").equalsIgnoreCase("true"))
+        if (Boolean.parseBoolean(properties.getProperty(CACHE_HASHED_PASSWORD_PROP, "false")))
+        {
             hashPassword = true;
+        }
 
         cache = new CredentialsCache();
     }
@@ -266,14 +349,16 @@ public class LDAPAuthenticator implements IAuthenticator
     /**
      * Generate a table of properties for connecting to LDAP server using JNDI
      *
-     * @return Table containing Context.INITIAL_CONTEXT_FACTORY, Context.PROVIDER_URL and Context.SECURITY_AUTHENTICATION set.
+     * @return Table containing {@link Context#INITIAL_CONTEXT_FACTORY}, {@link Context#PROVIDER_URL} and {@link Context#SECURITY_AUTHENTICATION} set.
      */
-    public Hashtable<String, String> getUserEnv()
+    private Hashtable<String, String> getUserEnv()
     {
-        Hashtable<String, String> env = new Hashtable<String, String>(11);
+        Hashtable<String, String> env = new Hashtable<>(11);
+
         env.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
         env.put(Context.PROVIDER_URL, properties.getProperty(LDAP_URI_PROP));
         env.put(Context.SECURITY_AUTHENTICATION, "simple");
+
         return env;
     }
 
@@ -286,102 +371,120 @@ public class LDAPAuthenticator implements IAuthenticator
     private String getUid(String user) throws NamingException
     {
         if (usernameToDN.containsKey(user))
+        {
             return usernameToDN.get(user);
+        }
 
         if (serviceContext == null)
         {
-            throw new ConfigurationException("LDAP server connection was not initialised");
+            throw new ConfigurationException("LDAP server connection was not initialised.");
         }
 
         logger.debug("Connected to LDAP server {}", properties.get(LDAP_URI_PROP));
 
-        String filter = "(" + properties.getOrDefault(NAMING_ATTRIBUTE_PROP, "cn") + "=" + user + ")";
-        SearchControls ctrl = new SearchControls();
-        ctrl.setSearchScope(SearchControls.SUBTREE_SCOPE);
-        NamingEnumeration answer = serviceContext.search("", filter, ctrl);
+        final String filter = String.format("(%s=%s)",
+                                            properties.getOrDefault(NAMING_ATTRIBUTE_PROP, "cn"),
+                                            user);
 
-        String dn;
+        final SearchControls searchControls = new SearchControls();
+        searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+
+        final NamingEnumeration answer = serviceContext.search("", filter, searchControls);
+
+        String dn = null;
+
         if (answer.hasMore())
         {
             SearchResult result = (SearchResult) answer.next();
             dn = result.getNameInNamespace();
-        } else
-        {
-            dn = null;
         }
 
         answer.close();
+
         usernameToDN.put(user, dn);
+
         return dn;
     }
 
     /**
-     * Authenticate to LDAP server as provided DN
+     * Authenticate to LDAP server as provided DN.
      *
      * @param user {@link User} to authenticate
-     * @return True if we successfully authenticated.
-     * @throws NamingException if authentication fails or other error occurs.
+     * @return password of user
+     * @throws LDAPAuthFailedException if authentication fails or other error occurs.
      */
     private String authDN(User user) throws LDAPAuthFailedException
     {
-        Hashtable env = getUserEnv();
+        final Hashtable env = getUserEnv();
+
         env.put(Context.SECURITY_PRINCIPAL, user.username);
         env.put(Context.SECURITY_CREDENTIALS, user.password);
+
         DirContext ctx = null;
+
         try
         {
             ctx = new InitialDirContext(env);
-        } catch (NamingException n)
+        }
+        catch (NamingException ex)
         {
-            throw new LDAPAuthFailedException(ExceptionCode.BAD_CREDENTIALS, n.getMessage(), n);
-        } finally
+            throw new LDAPAuthFailedException(ExceptionCode.BAD_CREDENTIALS, ex.getMessage(), ex);
+        }
+        finally
         {
             if (ctx != null)
             {
                 try
                 {
                     ctx.close();
-                } catch (NamingException n)
+                }
+                catch (NamingException ex)
                 {
+                    logger.debug("Exception occured while trying to close DirContext.", ex);
                 }
             }
         }
+
         if (hashPassword)
+        {
             return hashpw(user.password);
+        }
         else
+        {
             return user.password;
+        }
     }
 
     /**
-     * Authenticate a user/password combo to the configured LDAP server. On the first successful auth a corresponding
-     * C* role will be created.
+     * Authenticate a user/password combination to the configured LDAP server. On the first successful authentication a corresponding
+     * Cassandra role will be created.
      *
-     * @param username Username portion of the CN or UID. E.g "James Hook" in cn=James Hook,ou=people,o=sevenSeas
-     * @param password Corresponding password
+     * @param username username portion of the CN or UID. E.g "James Hook" in cn=James Hook,ou=people,o=sevenSeas
+     * @param password corresponding password
      * @return {@link AuthenticatedUser} for the DN as stored in C*.
-     * @throws AuthenticationException when auth with LDAP server fails.
+     * @throws AuthenticationException when authentication with LDAP server fails.
      */
     public AuthenticatedUser authenticate(String username, String password) throws AuthenticationException
     {
-        String dn;
-
         try
         {
-            dn = getUid(username);
+            String dn = getUid(username);
+
             if (dn == null)
             {
                 throw new AuthenticationException("Could not authenticate to directory server using provided credentials");
             }
+
             logger.trace("DN for user {}: {}", username, dn);
 
-            User user = new User(dn, password);
+            final User user = new User(dn, password);
 
-            String cachedPass = cache.get(user);
+            final String cachedPassword = cache.get(user);
 
             // authDN will be called if we're not in cache, subsequently loading the cache for the given user.
-            if (cachedPass != null)
+            if (cachedPassword != null)
             {
-                if (!checkpw(password, cachedPass))
+                if (!checkpw(password, cachedPassword))
                 {
                     // Password has changed, re-auth and store new password in cache (or fail). A bit dodgy because
                     // we don't have access to cache.put(). This has a side-effect that a bad auth will invalidate the
@@ -393,37 +496,61 @@ public class LDAPAuthenticator implements IAuthenticator
 
                 if (!userExists(dn))
                 {
-                    logger.debug("DN {} doesn't exist in {}.{}, creating new user", dn, SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
+                    logger.debug("DN {} doesn't exist in {}.{}, creating new user",
+                                 dn,
+                                 SchemaConstants.AUTH_KEYSPACE_NAME,
+                                 AuthKeyspace.ROLES);
                     createRole(dn);
                 }
 
                 return new AuthenticatedUser(dn);
             }
-        } catch (UncheckedExecutionException e)
+        }
+        catch (UncheckedExecutionException ex)
         {
-            if (e.getCause() instanceof LDAPAuthFailedException)
+            if (ex.getCause() instanceof LDAPAuthFailedException)
             {
-                logger.warn("Failed login from {}, reason was {}", username, e.getMessage());
-                throw new AuthenticationException("Failed to authenticate with directory server, user may not exist");
-            } else
-            {
-                throw e;
+                LDAPAuthFailedException ldex = (LDAPAuthFailedException) ex.getCause();
+
+                logger.warn("Failed login from {}, reason was {}", username, ex.getMessage());
+
+                throw new AuthenticationException(String.format(
+                    "Failed to authenticate with directory server, user may not exist: %s",
+                    ldex.getMessage()));
             }
-        } catch (NamingException | ExecutionException e)
+            else
+            {
+                throw ex;
+            }
+        }
+        catch (NamingException | ExecutionException ex)
         {
-            throw new SecurityException("Could not authenticate to the LDAP directory", e);
+            throw new SecurityException(String.format("Could not authenticate to the LDAP directory: %s", ex.getMessage()), ex);
         }
 
         return null; // should never be reached
     }
 
-    public static void createRole(String dn)
+    private static void createRole(String dn)
     {
-        CreateRoleStatement createStmt = (CreateRoleStatement) QueryProcessor.getStatement(String.format(CREATE_ROLE_STMT, dn), state).statement;
-        createStmt.execute(new QueryState(state),
-                           QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
-                                                         Lists.newArrayList(ByteBufferUtil.bytes(dn))),
-                           System.nanoTime());
+        final String CREATE_ROLE_STMT = "CREATE ROLE \"%s\" WITH LOGIN = true";
+
+        CreateRoleStatement createStmt =
+            (CreateRoleStatement) QueryProcessor.getStatement(String.format(CREATE_ROLE_STMT, dn), state).statement;
+
+        final ResultMessage result = createStmt.execute(new QueryState(state),
+                                                        QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+                                                                                      Lists.newArrayList(ByteBufferUtil
+                                                                                                             .bytes(dn))),
+                                                        System.nanoTime());
+
+        if (!result.getWarnings().isEmpty())
+        {
+            for (final String warning : result.getWarnings())
+            {
+                logger.warn("Warning emitted from create role method: {}", warning);
+            }
+        }
     }
 
     /**
@@ -436,25 +563,33 @@ public class LDAPAuthenticator implements IAuthenticator
     {
         // To avoid doing a select every auth we store previously checked users in mem
         if (existingUsers.contains(dn))
+        {
             return true;
+        }
 
-        SelectStatement selStmt = (SelectStatement) QueryProcessor.getStatement(String.format(FIND_USER_STMT, ROLE, SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES), state).statement;
-        ResultMessage.Rows rows = selStmt.execute(new QueryState(state),
-                                                  QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE, Lists.newArrayList(ByteBufferUtil.bytes(dn))),
-                                                  System.nanoTime());
+        final String FIND_USER_STMT = "SELECT %s FROM %s.%s where role = ?";
+
+        final SelectStatement selStmt = (SelectStatement) QueryProcessor.getStatement(String.format(FIND_USER_STMT,
+                                                                                                    ROLE,
+                                                                                                    SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                                                                    AuthKeyspace.ROLES),
+                                                                                      state).statement;
+
+        final ResultMessage.Rows rows = selStmt.execute(new QueryState(state),
+                                                        QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+                                                                                      Lists.newArrayList(ByteBufferUtil
+                                                                                                             .bytes(dn))),
+                                                        System.nanoTime());
+
         if (rows.result.isEmpty())
         {
             return false;
-        } else
+        }
+        else
         {
             existingUsers.add(dn);
             return true;
         }
-    }
-
-    protected CredentialsCache getCache()
-    {
-        return cache;
     }
 
     public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
@@ -464,18 +599,26 @@ public class LDAPAuthenticator implements IAuthenticator
 
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException
     {
-        String username = credentials.get(LDAP_DN);
-        if (username == null)
-            throw new AuthenticationException(String.format("Required key '%s' is missing", LDAP_DN));
+        final String username = credentials.get(LDAP_DN);
 
-        String password = credentials.get(PASSWORD_KEY);
+        if (username == null)
+        {
+            throw new AuthenticationException(String.format("Required key '%s' is missing", LDAP_DN));
+        }
+
+        final String password = credentials.get(PASSWORD_KEY);
+
         if (password == null)
-            throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
+        {
+            throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s",
+                                                            PASSWORD_KEY,
+                                                            username));
+        }
 
         return authenticate(username, password);
     }
 
-    private class PlainTextSaslAuthenticator implements SaslNegotiator
+    public class PlainTextSaslAuthenticator implements SaslNegotiator
     {
         private boolean complete = false;
         private String username;
@@ -496,7 +639,10 @@ public class LDAPAuthenticator implements IAuthenticator
         public AuthenticatedUser getAuthenticatedUser() throws AuthenticationException
         {
             if (!complete)
+            {
                 throw new AuthenticationException("SASL negotiation not complete");
+            }
+
             return authenticate(username, password);
         }
 
@@ -515,9 +661,12 @@ public class LDAPAuthenticator implements IAuthenticator
         private void decodeCredentials(byte[] bytes) throws AuthenticationException
         {
             logger.trace("Decoding credentials from client token");
+
             byte[] user = null;
             byte[] pass = null;
+
             int end = bytes.length;
+
             for (int i = bytes.length - 1; i >= 0; i--)
             {
                 if (bytes[i] == NUL)
@@ -532,6 +681,7 @@ public class LDAPAuthenticator implements IAuthenticator
 
             if (pass == null)
                 throw new AuthenticationException("Password must not be null");
+
             if (user == null)
                 throw new AuthenticationException("Authentication ID must not be null");
 
@@ -540,7 +690,7 @@ public class LDAPAuthenticator implements IAuthenticator
         }
     }
 
-    protected class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
+    public class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
     {
 
         private CredentialsCache()
@@ -564,13 +714,14 @@ public class LDAPAuthenticator implements IAuthenticator
 
     public interface CredentialsCacheMBean extends AuthCacheMBean
     {
-        public void invalidateCredentials(String username);
+        void invalidateCredentials(String username);
     }
 
     public static class User
     {
         public final String username;
-        public String password;
+
+        public final String password;
 
         User(String name, String pass)
         {
@@ -583,6 +734,7 @@ public class LDAPAuthenticator implements IAuthenticator
         {
             if (obj == null)
                 return false;
+
             final User other = (User) obj;
 
             return this.username.equals(other.username);
@@ -599,11 +751,6 @@ public class LDAPAuthenticator implements IAuthenticator
 
     public static class LDAPAuthFailedException extends RequestExecutionException
     {
-
-        public LDAPAuthFailedException(ExceptionCode code, String msg)
-        {
-            super(code, msg);
-        }
 
         public LDAPAuthFailedException(ExceptionCode code, String msg, Throwable t)
         {
