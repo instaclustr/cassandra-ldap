@@ -307,10 +307,8 @@ public class LDAPAuthenticator implements IAuthenticator
                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                                   AuthKeyspace.ROLES,
                                                   serviceDN),
-                                           ConsistencyLevel.QUORUM);
+                                           ConsistencyLevel.ONE);
                 }
-
-                state.login(new AuthenticatedUser(serviceDN));
             }
         }
         catch (NamingException ex)
@@ -510,7 +508,7 @@ public class LDAPAuthenticator implements IAuthenticator
             (CreateRoleStatement) QueryProcessor.getStatement(format(CREATE_ROLE_STMT, dn), state).statement;
 
         createStmt.execute(new QueryState(state),
-                           QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+                           QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
                                                          Lists.newArrayList(ByteBufferUtil.bytes(dn))),
                            System.nanoTime());
     }
@@ -537,7 +535,7 @@ public class LDAPAuthenticator implements IAuthenticator
                                                                                       state).statement;
 
         final ResultMessage.Rows rows = selStmt.execute(new QueryState(state),
-                                                        QueryOptions.forInternalCalls(ConsistencyLevel.LOCAL_ONE,
+                                                        QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
                                                                                       Lists.newArrayList(ByteBufferUtil
                                                                                                              .bytes(dn))),
                                                         System.nanoTime());

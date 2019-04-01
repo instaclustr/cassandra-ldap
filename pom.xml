@@ -69,6 +69,10 @@
         </repository>
     </distributionManagement>
 
+    <build>
+        <finalName>cassandra-ldap-${version.cassandra.all}</finalName>
+    </build>
+
     <profiles>
         <!--Use this profile when releasing. For example: "mvn clean deploy -P release"-->
         <profile>
