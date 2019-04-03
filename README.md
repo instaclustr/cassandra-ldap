@@ -4,9 +4,11 @@ LDAP Authenticator for Apache Cassandra
 This is a pluggable authentication implementation for Apache Cassandra, providing a way to authenticate and create users based on a configured LDAP server.
 This implementation purely provides authentication only. Role management must be performed through the usual Cassandra role management, CassandraAuthorizer. See **How it works** for more details.
 
-
 Building
 ========
+
+The JAR is released to Maven Central. You can download it there without actually building this repository: https://search.maven.org/artifact/com.instaclustr/cassandra-ldap
+
 There are separate branches for each supported version of Apache Cassandra. Each branch should work with any corresponding minor version of the same branch in Cassandra.
 Building the jar requires Apache maven.
 Clone and checkout the desired branch.
