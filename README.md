@@ -23,12 +23,22 @@ Compile and package
 
 Configuration
 =============
+
+Please be sure that `system_auth` keyspace uses `NetworkTopologyStrategy` with number of replicas equal to number of nodes in DC. If it is not 
+the case, you can alter your keyspace like:
+
+    ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'dc1': '3'}  AND durable_writes = true;
+    
+After this, rebuild system_auth keyspace:
+
+    nodetool rebuild -ks system_auth
+
 From the git repo, fill in and copy the `ldap.properties` file to some location ($CASSANDRA_CONF is a good one) on each of the nodes. This file is used for telling the authenticator details about the LDAP server and connection.
 
 Copy the created jar file to each node in your cluster, and append it to the CLASSPATH variable in the cassandra-env.sh/cassandra-env.ps1). It is enough to put that jar into 
 Cassandra's `lib` directory from where it will be picked up automatically.
 
-    CLASSPATH="$CLASSPATH:/path/to/cassandra-ldap-3.11.2.jar"
+    CLASSPATH="$CLASSPATH:/path/to/cassandra-ldap-3.11.4.jar"
 
 Also add the following option to the JVM options, pointing to the location of your ldap.properties file (on each node). This is not necessary if you place `ldap.properties` into 
 `$CASSANDRA_CONF` directory as from there it will be picked up automatically (assuming `$CASSANDRA_CONF` is set in your system).
@@ -67,6 +77,9 @@ LDAPAuthenticator currently supports plain text authorisation requests only in t
 Credentials are sent from your client to the Cassandra server and then tested against the LDAP server for authentication using a specified service account. This service account should be configured in the `ldap.properties` file using the `service_dn` and `service_password` properties. This can be excluded if you allow anonymous access to ldap (not recommended unless you know what you're doing!).
 
 On successful authentication to LDAP a corresponding Cassandra user will be created (including for the service user who will be SUPERUSER). These users are never removed, as it is deemed cleanup is not necessary as long as auth is still handled by LDAP. Manual cleanup of users will work fine, and if they re-auth a replacement user will be created. Passwords are not stored in Cassandra, however on 3.11 and later they will live in the credentials cache when used.
+
+There is also default `cassandra` user with `cassandra` password created but not used in case you go against LDAP. If you ever change your mind and switch 
+back to some other authenticator, e.g. `PasswordAuthenticator` in connection with `CassandraRoleManager`, you can authenticate with `cassandra:cassandra`.
 
 ## Further Information
 - See blog by Kurt Greaves ["Apache Cassandra LDAP Authentication"](https://www.instaclustr.com/apache-cassandra-ldap-authentication/)

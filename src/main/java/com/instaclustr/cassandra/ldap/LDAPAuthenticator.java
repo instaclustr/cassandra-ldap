@@ -34,6 +34,7 @@ import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticator
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.db.ConsistencyLevel.ONE;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -243,45 +244,55 @@ public class LDAPAuthenticator implements IAuthenticator
 
         if (!(CassandraAuthorizer.class.isAssignableFrom(DatabaseDescriptor.getAuthorizer().getClass())))
         {
-            throw new ConfigurationException("LDAPAuthenticator only works with CassandraAuthorizer");
+            throw new ConfigurationException(String.format("%s only works with %s",
+                                                           LDAPAuthenticator.class.getCanonicalName(),
+                                                           CassandraAuthorizer.class.getCanonicalName()));
         }
-
-        state = ClientState.forInternalCalls();
 
         if (DatabaseDescriptor.getAuthorizer().requireAuthorization())
         {
-            boolean defaultSuperuserLoggedIn = false;
+            boolean defaultSuperuserExists = false;
 
             int attempts = 0;
 
-            Throwable loginException = null;
+            Throwable caughtException = null;
 
-            while (!defaultSuperuserLoggedIn && attempts < INITIAL_CASSANDRA_LOGIN_ATTEMPTS)
+            while (!defaultSuperuserExists && attempts < INITIAL_CASSANDRA_LOGIN_ATTEMPTS)
             {
+                Uninterruptibles.sleepUninterruptibly(INITIAL_CASSANDRA_LOGIN_ATTEMPT_PERIOD, SECONDS);
+
+                attempts++;
+
+                String cassandraUserSelect = String.format("SELECT * FROM %s.%s WHERE role = '%s'",
+                                                           SchemaConstants.AUTH_KEYSPACE_NAME,
+                                                           AuthKeyspace.ROLES,
+                                                           DEFAULT_SUPERUSER_NAME);
                 try
                 {
-                    state.login(new AuthenticatedUser(DEFAULT_SUPERUSER_NAME));
-
-                    defaultSuperuserLoggedIn = true;
+                    defaultSuperuserExists = !QueryProcessor.process(cassandraUserSelect, ONE).isEmpty();
                 }
-                catch (AuthenticationException ex)
+                catch (Exception ex)
                 {
-
-                    // If we got here it was likely the first node in the clusters first startup, and we need to
-                    // sleep to ensure superuser and auth has been set up before we try login.
-
-                    loginException = ex;
-                    attempts++;
-
-                    Uninterruptibles.sleepUninterruptibly(INITIAL_CASSANDRA_LOGIN_ATTEMPT_PERIOD, SECONDS);
+                    caughtException = ex;
                 }
             }
 
-            if (!defaultSuperuserLoggedIn && loginException != null)
+            if (!defaultSuperuserExists)
             {
-                throw new ConfigurationException("Unable to perform initial login: " + loginException.getMessage(), loginException);
+                if (caughtException != null)
+                {
+                    throw new ConfigurationException("Unable to perform initial login: " + caughtException.getMessage(), caughtException);
+                }
+                else
+                {
+                    throw new ConfigurationException(String.format("There was not %s user created in %s seconds.",
+                                                                   DEFAULT_SUPERUSER_NAME,
+                                                                   INITIAL_CASSANDRA_LOGIN_ATTEMPTS * INITIAL_CASSANDRA_LOGIN_ATTEMPT_PERIOD));
+                }
             }
         }
+
+        state = ClientState.forInternalCalls();
 
         try
         {
@@ -307,7 +318,7 @@ public class LDAPAuthenticator implements IAuthenticator
                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                                   AuthKeyspace.ROLES,
                                                   serviceDN),
-                                           ConsistencyLevel.ONE);
+                                           ONE);
                 }
             }
         }
@@ -508,7 +519,7 @@ public class LDAPAuthenticator implements IAuthenticator
             (CreateRoleStatement) QueryProcessor.getStatement(format(CREATE_ROLE_STMT, dn), state).statement;
 
         createStmt.execute(new QueryState(state),
-                           QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
+                           QueryOptions.forInternalCalls(ONE,
                                                          Lists.newArrayList(ByteBufferUtil.bytes(dn))),
                            System.nanoTime());
     }
@@ -535,7 +546,7 @@ public class LDAPAuthenticator implements IAuthenticator
                                                                                       state).statement;
 
         final ResultMessage.Rows rows = selStmt.execute(new QueryState(state),
-                                                        QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
+                                                        QueryOptions.forInternalCalls(ONE,
                                                                                       Lists.newArrayList(ByteBufferUtil
                                                                                                              .bytes(dn))),
                                                         System.nanoTime());
