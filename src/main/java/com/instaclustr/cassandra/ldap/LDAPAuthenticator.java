@@ -18,6 +18,7 @@
 package com.instaclustr.cassandra.ldap;
 
 import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.ANONYMOUS_ACCESS_PROP;
+import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
 import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP;
 import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.DEFAULT_CONTEXT_FACTORY;
 import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.DEFAULT_SERVICE_ROLE;
@@ -31,6 +32,7 @@ import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticator
 import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.LDAP_URI_PROP;
 import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.NAMING_ATTRIBUTE_PROP;
 import static com.instaclustr.cassandra.ldap.LDAPAuthenticator.LdapAuthenticatorConfiguration.PASSWORD_KEY;
+import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -223,7 +225,7 @@ public class LDAPAuthenticator implements IAuthenticator
         String serviceDN = properties.getProperty(LDAP_DN);
         String servicePass = properties.getProperty(PASSWORD_KEY);
 
-        if (!Boolean.parseBoolean(properties.getProperty(ANONYMOUS_ACCESS_PROP, "false")))
+        if (!parseBoolean(properties.getProperty(ANONYMOUS_ACCESS_PROP, "false")))
         {
 
             if (serviceDN == null || servicePass == null)
@@ -237,6 +239,8 @@ public class LDAPAuthenticator implements IAuthenticator
 
         properties.put(Context.INITIAL_CONTEXT_FACTORY, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
         properties.put(Context.PROVIDER_URL, properties.getProperty(LDAP_URI_PROP));
+
+        properties.setProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, Boolean.toString(parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, "true"))));
     }
 
     public void setup()
@@ -296,7 +300,7 @@ public class LDAPAuthenticator implements IAuthenticator
 
         try
         {
-            if (Boolean.parseBoolean(properties.getProperty(ANONYMOUS_ACCESS_PROP)))
+            if (parseBoolean(properties.getProperty(ANONYMOUS_ACCESS_PROP)))
             {
                 // Anonymous
                 serviceContext = new InitialDirContext(properties);
@@ -330,7 +334,7 @@ public class LDAPAuthenticator implements IAuthenticator
                                              ex);
         }
 
-        cache = new CredentialsCache();
+        cache = new CredentialsCache(parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP)));
     }
 
     /**
@@ -663,7 +667,7 @@ public class LDAPAuthenticator implements IAuthenticator
     public class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
     {
 
-        private CredentialsCache()
+        private CredentialsCache(boolean enableCache)
         {
             super("CredentialsCache",
                   DatabaseDescriptor::setCredentialsValidity,
@@ -673,7 +677,11 @@ public class LDAPAuthenticator implements IAuthenticator
                   DatabaseDescriptor::setCredentialsCacheMaxEntries,
                   DatabaseDescriptor::getCredentialsCacheMaxEntries,
                   LDAPAuthenticator.this::authDN,
-                  () -> true);
+                  () -> {
+                      logger.info("Using AuthCache: " + enableCache);
+
+                      return enableCache;
+                  });
         }
 
         public void invalidateCredentials(String username)
@@ -758,6 +766,8 @@ public class LDAPAuthenticator implements IAuthenticator
 
         // Just to support those not using "cn"
         public static final String NAMING_ATTRIBUTE_PROP = "ldap_naming_attribute";
+
+        public static final String CASSANDRA_AUTH_CACHE_ENABLED_PROP = "auth_cache_enabled";
 
         // system properties not meant to be in configuration file but specified as -D property
 
