@@ -74,7 +74,10 @@ Credentials are sent from your client to the Cassandra server and then tested ag
 On successful authentication to LDAP a corresponding Cassandra user will be created (including for the service user who will be SUPERUSER). These users are never removed, as it is deemed cleanup is not necessary as long as auth is still handled by LDAP. Manual cleanup of users will work fine, and if they re-auth a replacement user will be created. Passwords are not stored in Cassandra, however on 3.11 and later they will live in the credentials cache when used.
 
 There is also default `cassandra` user with `cassandra` password created but not used in case you go against LDAP. If you ever change your mind and switch 
-back to some other authenticator, e.g. `PasswordAuthenticator` in connection with `CassandraRoleManager`, you can authenticate with `cassandra:cassandra`.
+back to some other authenticator, e.g. `PasswordAuthenticator` in connection with `CassandraRoleManager`, you can authenticate with `cassandra:cassandra` as normally.
+
+If LDAP server connection is lost or there is other communication error while talking to LDAP server, operator has still a possibility to log in via 
+`cassandra` user as usually and until LDAP server is not back again, users meant to be authenticated against LDAP server will not be able to log in.
 
 ## Further Information
 - See blog by Kurt Greaves ["Apache Cassandra LDAP Authentication"](https://www.instaclustr.com/apache-cassandra-ldap-authentication/)
