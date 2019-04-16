@@ -6,7 +6,7 @@
     <groupId>com.instaclustr</groupId>
     <artifactId>cassandra-ldap</artifactId>
     <packaging>jar</packaging>
-    <version>3.11.4.2</version>
+    <version>3.11.4.3</version>
 
     <name>Cassandra LDAP Authenticator</name>
     <description>Pluggable LDAP authentication implementation for Apache Cassandra</description>
