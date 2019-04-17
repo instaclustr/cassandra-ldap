@@ -48,6 +48,7 @@ In your `cassandra.yaml` configure the authenticator **and authorizer** like so:
 
     authenticator: com.instaclustr.cassandra.ldap.LDAPAuthenticator
     authorizer: CassandraAuthorizer
+    role_manager: com.instaclustr.cassandra.ldap.LDAPCassandraRoleManager
 
 Configure credential caching parameters in `cassandra.yaml`.
 [Re]start Cassandra.
