@@ -17,12 +17,11 @@
  */
 package com.instaclustr.cassandra.ldap.cache;
 
+import com.instaclustr.cassandra.ldap.User;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.instaclustr.cassandra.ldap.User;
 
 public class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
 {

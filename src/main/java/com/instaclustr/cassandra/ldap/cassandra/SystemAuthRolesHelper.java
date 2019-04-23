@@ -27,6 +27,8 @@ import static org.apache.cassandra.db.ConsistencyLevel.ONE;
 
 import java.util.Properties;
 
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.SchemaConstants;
@@ -39,9 +41,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 public class SystemAuthRolesHelper
 {

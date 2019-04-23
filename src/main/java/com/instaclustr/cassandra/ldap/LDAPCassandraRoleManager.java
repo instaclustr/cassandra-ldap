@@ -19,10 +19,9 @@ package com.instaclustr.cassandra.ldap;
 
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
-
-import com.google.common.collect.ImmutableSet;
 
 /**
  * CassandraRoleManager by default supports setting passwords only in connection with PasswordAuthenticator.

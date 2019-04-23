@@ -19,10 +19,9 @@ package com.instaclustr.cassandra.ldap.cache;
 
 import java.util.function.Function;
 
+import com.instaclustr.cassandra.ldap.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.instaclustr.cassandra.ldap.User;
 
 public class CredentialsCacheLoadingFunction implements Function<User, String>
 {

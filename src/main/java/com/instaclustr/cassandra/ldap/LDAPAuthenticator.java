@@ -30,6 +30,15 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.instaclustr.cassandra.ldap.auth.CassandraRolePasswordRetriever;
+import com.instaclustr.cassandra.ldap.auth.LDAPServer;
+import com.instaclustr.cassandra.ldap.cache.CredentialsCache;
+import com.instaclustr.cassandra.ldap.cache.CredentialsCacheLoadingFunction;
+import com.instaclustr.cassandra.ldap.cassandra.SystemAuthRolesHelper;
+import com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration;
+import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
+import com.instaclustr.cassandra.ldap.hash.HasherImpl;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.CassandraAuthorizer;
@@ -43,16 +52,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.ClientState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.util.concurrent.UncheckedExecutionException;
-import com.instaclustr.cassandra.ldap.auth.CassandraRolePasswordRetriever;
-import com.instaclustr.cassandra.ldap.auth.LDAPServer;
-import com.instaclustr.cassandra.ldap.cache.CredentialsCache;
-import com.instaclustr.cassandra.ldap.cache.CredentialsCacheLoadingFunction;
-import com.instaclustr.cassandra.ldap.cassandra.SystemAuthRolesHelper;
-import com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration;
-import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
-import com.instaclustr.cassandra.ldap.hash.HasherImpl;
 
 /**
  * Uses JNDI to authenticate to an LDAP server. On successful authentication a Cassandra role is created for the provided

@@ -20,12 +20,11 @@ package com.instaclustr.cassandra.ldap.configuration;
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
 
+import javax.naming.Context;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
-
-import javax.naming.Context;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.slf4j.Logger;

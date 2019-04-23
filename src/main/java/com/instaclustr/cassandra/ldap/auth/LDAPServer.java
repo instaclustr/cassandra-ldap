@@ -26,9 +26,6 @@ import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConf
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
 
-import java.util.Hashtable;
-import java.util.Properties;
-
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -36,7 +33,12 @@ import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
+import java.util.Hashtable;
+import java.util.Properties;
 
+import com.instaclustr.cassandra.ldap.User;
+import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
+import com.instaclustr.cassandra.ldap.hash.HasherImpl;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -44,10 +46,6 @@ import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.service.ClientState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.instaclustr.cassandra.ldap.User;
-import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
-import com.instaclustr.cassandra.ldap.hash.HasherImpl;
 
 public class LDAPServer implements HashedPasswordRetriever
 {

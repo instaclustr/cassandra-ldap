@@ -17,6 +17,10 @@
  */
 package com.instaclustr.cassandra.ldap.auth;
 
+import com.google.common.collect.Lists;
+import com.instaclustr.cassandra.ldap.User;
+import com.instaclustr.cassandra.ldap.exception.NoSuchCredentialsException;
+import com.instaclustr.cassandra.ldap.exception.NoSuchRoleException;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
@@ -32,11 +36,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Lists;
-import com.instaclustr.cassandra.ldap.User;
-import com.instaclustr.cassandra.ldap.exception.NoSuchCredentialsException;
-import com.instaclustr.cassandra.ldap.exception.NoSuchRoleException;
 
 public class CassandraRolePasswordRetriever implements HashedPasswordRetriever
 {
