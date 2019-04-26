@@ -173,7 +173,7 @@ public class LDAPServer implements HashedPasswordRetriever
     {
         if (serviceContext == null)
         {
-            throw new ConfigurationException("LDAP server connection was not initialised.");
+            setup();
         }
 
         try
