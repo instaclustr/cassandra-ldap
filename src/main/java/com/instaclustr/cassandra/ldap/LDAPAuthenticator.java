@@ -106,19 +106,24 @@ public class LDAPAuthenticator implements IAuthenticator
 
         ClientState state = ClientState.forInternalCalls();
 
+        // In case operator deletes cassandra role, in order to log in with a user different from cassandra,
+        // one has to set below system property for Cassandra process upon start.
+        // This user has to be superuser in order to be able to create roles.
+        // You have to specify what is basically in ldap.properties
+        // under service_dn, e.g "-Dcassandra.ldap.admin.user=cn=admin,dc=example,dc=org"
+        // This name maps to system_auth.roles.role field and it has to be already present so operator
+        // will likely log in with LDAP admin first in order to have that entry present in system_auth.roles
+        state.login(new AuthenticatedUser(System.getProperty("cassandra.ldap.admin.user", "cassandra")));
+
         hashUtils = new HasherImpl();
 
         systemAuthRolesHelper = new SystemAuthRolesHelper(state, properties);
-        systemAuthRolesHelper.waitUntilCassandraRoleIsInitialised();
-
-        state.login(new AuthenticatedUser("cassandra"));
 
         LDAPServer ldapServer = new LDAPServer(state, hashUtils, properties);
 
         try
         {
             ldapServer.setup();
-            systemAuthRolesHelper.createServiceDNIfNotExist();
         }
         catch (ConfigurationException e)
         {
