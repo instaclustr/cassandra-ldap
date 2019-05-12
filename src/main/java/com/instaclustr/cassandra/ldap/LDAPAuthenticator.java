@@ -19,6 +19,7 @@ package com.instaclustr.cassandra.ldap;
 
 import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
 import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.LDAP_DN;
+import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.NAMING_ATTRIBUTE_PROP;
 import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.PASSWORD_KEY;
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
@@ -106,6 +107,10 @@ public class LDAPAuthenticator implements IAuthenticator
 
         ClientState state = ClientState.forInternalCalls();
 
+        systemAuthRolesHelper = new SystemAuthRolesHelper(state, properties);
+
+        systemAuthRolesHelper.waitUntilRoleIsInitialised(System.getProperty("cassandra.ldap.admin.user", "cassandra"));
+
         // In case operator deletes cassandra role, in order to log in with a user different from cassandra,
         // one has to set below system property for Cassandra process upon start.
         // This user has to be superuser in order to be able to create roles.
@@ -116,8 +121,6 @@ public class LDAPAuthenticator implements IAuthenticator
         state.login(new AuthenticatedUser(System.getProperty("cassandra.ldap.admin.user", "cassandra")));
 
         hashUtils = new HasherImpl();
-
-        systemAuthRolesHelper = new SystemAuthRolesHelper(state, properties);
 
         LDAPServer ldapServer = new LDAPServer(state, hashUtils, properties);
 
@@ -133,7 +136,8 @@ public class LDAPAuthenticator implements IAuthenticator
         CassandraRolePasswordRetriever cassandraRolePasswordRetriever = new CassandraRolePasswordRetriever(state);
 
         cache = new CredentialsCache(new CredentialsCacheLoadingFunction(cassandraRolePasswordRetriever::retrieveHashedPassword,
-                                                                         ldapServer::retrieveHashedPassword),
+                                                                         ldapServer::retrieveHashedPassword,
+                                                                         properties.getProperty(NAMING_ATTRIBUTE_PROP)),
                                      parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP)));
     }
 
@@ -159,6 +163,11 @@ public class LDAPAuthenticator implements IAuthenticator
             {
                 if (!hashUtils.checkPasswords(password, cachedPassword))
                 {
+                    if (user.getLdapDN() == null)
+                    {
+                        throw new AuthenticationException("invalid username/password");
+                    }
+
                     // Password has changed, re-auth and store new password in cache (or fail). A bit dodgy because
                     // we don't have access to cache.put(). This has a side-effect that a bad auth will invalidate the
                     // cache for the user and the next auth for the user will have to re-populate the cache. tl;dr:

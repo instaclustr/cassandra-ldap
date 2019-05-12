@@ -80,6 +80,25 @@ back to some other authenticator, e.g. `PasswordAuthenticator` in connection wit
 If LDAP server connection is lost or there is other communication error while talking to LDAP server, operator has still a possibility to log in via 
 `cassandra` user as usually and until LDAP server is not back again, users meant to be authenticated against LDAP server will not be able to log in.
 
+In case there are two logins of same name (e.g. admin in LDAP and admin in C*), 
+in order to distinguish them, if you want to login with LDAP user, you have to 
+specify its full account name, e.g
+
+    cqlsh -u cn=admin,dn=example,dn=org
+
+In case user specifies just "admin" as login name, it will try to authenticate 
+both against database first and if not successful, against LDAP.
+
+It is possible to delete administration role (e.g. role `cassandra`) but if one does that, all administration operations are possible to 
+be done only via LDAP account. In case LDAP is down, operator would not have any control over DB as `cassandra` is not present anymore. 
+In such case, it is recommended to create another admin-like user with strong password _before_ `cassandra` role is deleted. Plugin is internally creating new roles 
+when somebody from LDAP logs in and it is not in DB yet - for this functionality, there needs to be some admin-like user which writes to `system_auth.roles` table.
+If you delete `cassandra` user, there is suddenly not such user. You have to restart node and specify this property
+
+    -Dcassandra.ldap.admin.user=dba
+    
+Where `dba` is _new_ superuser which is able to write to `system_auth.roles` and acts as Cassandra admin. 
+
 ## Further Information
 - See blog by Kurt Greaves ["Apache Cassandra LDAP Authentication"](https://www.instaclustr.com/apache-cassandra-ldap-authentication/)
 - Please see https://www.instaclustr.com/support/documentation/announcements/instaclustr-open-source-project-status/ for Instaclustr support status of this project

@@ -131,7 +131,7 @@ public class LDAPServer implements HashedPasswordRetriever
             {
                 throw new AuthenticationException(String.format("Could not authenticate to directory server using naming attribute %s and username %s."
                                                                     + "User likely does not exist or connection to LDAP server is invalid.",
-                                                                getLdapNamingAttribute(),
+                                                                properties.getProperty(NAMING_ATTRIBUTE_PROP),
                                                                 user.getUsername()));
             }
 
@@ -193,7 +193,7 @@ public class LDAPServer implements HashedPasswordRetriever
     private String searchLdapDN(String username) throws NamingException
     {
         final String filter = format("(%s=%s)",
-                                     getLdapNamingAttribute(),
+                                     properties.getProperty(NAMING_ATTRIBUTE_PROP),
                                      username);
 
         String dn = null;
@@ -251,10 +251,5 @@ public class LDAPServer implements HashedPasswordRetriever
         env.put(Context.SECURITY_CREDENTIALS, password);
 
         return env;
-    }
-
-    private Object getLdapNamingAttribute()
-    {
-        return properties.getOrDefault(NAMING_ATTRIBUTE_PROP, "cn");
     }
 }

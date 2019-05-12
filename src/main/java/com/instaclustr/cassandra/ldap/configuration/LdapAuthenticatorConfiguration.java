@@ -148,6 +148,11 @@ public final class LdapAuthenticatorConfiguration
             }
         }
 
+        if (properties.getProperty(NAMING_ATTRIBUTE_PROP) == null)
+        {
+            properties.setProperty(NAMING_ATTRIBUTE_PROP, "cn");
+        }
+
         properties.put(Context.INITIAL_CONTEXT_FACTORY, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
         properties.put(Context.PROVIDER_URL, properties.getProperty(LDAP_URI_PROP));
 

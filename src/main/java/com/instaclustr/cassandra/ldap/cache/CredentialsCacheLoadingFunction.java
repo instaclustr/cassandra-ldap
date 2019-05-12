@@ -17,9 +17,13 @@
  */
 package com.instaclustr.cassandra.ldap.cache;
 
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import com.instaclustr.cassandra.ldap.User;
+import com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,11 +35,15 @@ public class CredentialsCacheLoadingFunction implements Function<User, String>
 
     private Function<User, String> ldapAuthLoadingFunction;
 
+    private String namingAttributeValue;
+
     public CredentialsCacheLoadingFunction(Function<User, String> passwordAuthLoadingFunction,
-                                           Function<User, String> ldapAuthLoadingFunction)
+                                           Function<User, String> ldapAuthLoadingFunction,
+                                           String namingAttributeValue)
     {
         this.passwordAuthLoadingFunction = passwordAuthLoadingFunction;
         this.ldapAuthLoadingFunction = ldapAuthLoadingFunction;
+        this.namingAttributeValue = namingAttributeValue;
     }
 
     public Function<User, String> getPasswordAuthLoadingFunction()
@@ -51,6 +59,29 @@ public class CredentialsCacheLoadingFunction implements Function<User, String>
     @Override
     public String apply(User user)
     {
+        // in case there are two logins of same name (e.g. admin in LDAP and admin in C*),
+        // in order to distinguish them, if you want to login with LDAP user, you have to
+        // specify its full account name, e.g
+        // cqlsh -u cn=admin,dn=example,dn=org
+        //
+        // in case user specifies just "admin" as login name, it will try to authenticate
+        // both against database first and if not successful, against LDAP.
+        if (user.getUsername() != null && user.getUsername().contains(namingAttributeValue + "="))
+        {
+            logger.debug("Doing LDAP authentication against " + user.getUsername());
+
+            Optional<String> username = Stream.of(user.getUsername().split(","))
+                    .filter(component -> component.startsWith(namingAttributeValue + "="))
+                    .findFirst()
+                    .filter(component -> component.split("=").length == 2)
+                    .map(component -> component.split("=")[1]);
+
+            if (username.isPresent())
+            {
+                return getLdapAuthLoadingFunction().apply(new User(username.get(), user.getPassword()));
+            }
+        }
+
         try
         {
             logger.debug("Doing password authentication against " + user.getUsername());

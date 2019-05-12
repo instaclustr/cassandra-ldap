@@ -17,7 +17,6 @@
  */
 package com.instaclustr.cassandra.ldap.cassandra;
 
-import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.DEFAULT_SUPERUSER_NAME;
 import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.INITIAL_CASSANDRA_LOGIN_ATTEMPTS;
 import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.INITIAL_CASSANDRA_LOGIN_ATTEMPT_PERIOD;
 import static com.instaclustr.cassandra.ldap.configuration.LdapAuthenticatorConfiguration.LDAP_DN;
@@ -106,7 +105,7 @@ public class SystemAuthRolesHelper
                            System.nanoTime());
     }
 
-    public void waitUntilCassandraRoleIsInitialised()
+    public void waitUntilRoleIsInitialised(String role)
     {
         if (DatabaseDescriptor.getAuthorizer().requireAuthorization())
         {
@@ -125,7 +124,7 @@ public class SystemAuthRolesHelper
                 String cassandraUserSelect = String.format("SELECT * FROM %s.%s WHERE role = '%s'",
                                                            SchemaConstants.AUTH_KEYSPACE_NAME,
                                                            AuthKeyspace.ROLES,
-                                                           DEFAULT_SUPERUSER_NAME);
+                                                           role);
                 try
                 {
                     defaultCassandraRoleExists = !QueryProcessor.process(cassandraUserSelect, ONE).isEmpty();
@@ -145,7 +144,7 @@ public class SystemAuthRolesHelper
                 else
                 {
                     throw new ConfigurationException(String.format("There was not %s user created in %s seconds.",
-                                                                   DEFAULT_SUPERUSER_NAME,
+                                                                   role,
                                                                    INITIAL_CASSANDRA_LOGIN_ATTEMPTS * INITIAL_CASSANDRA_LOGIN_ATTEMPT_PERIOD));
                 }
             }
