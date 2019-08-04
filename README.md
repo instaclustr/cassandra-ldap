@@ -7,7 +7,9 @@ This implementation purely provides authentication only. Role management must be
 Building
 ========
 
-The JAR is released to Maven Central. You can download it there without actually building this repository: https://search.maven.org/artifact/com.instaclustr/cassandra-ldap
+JARs are in releases https://github.com/instaclustr/cassandra-ldap/releases
+
+The JAR is released to Maven Central as well. You can download it there without actually building this repository: https://search.maven.org/artifact/com.instaclustr/cassandra-ldap
 
 There are separate branches for each supported version of Apache Cassandra. Each branch should work with any corresponding minor version of the same branch in Cassandra.
 Building the jar requires Apache maven. Clone and checkout the desired branch if you want to develop against that.
