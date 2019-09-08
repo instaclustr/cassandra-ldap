@@ -130,7 +130,7 @@ public class LDAPAuthenticator implements IAuthenticator
         }
         catch (ConfigurationException e)
         {
-            logger.warn(String.format("Not possible to connect to LDAP server as user %s.", properties.getProperty(LDAP_DN)));
+            logger.warn(String.format("Not possible to connect to LDAP server as user %s.", properties.getProperty(LDAP_DN)), e);
         }
 
         CassandraRolePasswordRetriever cassandraRolePasswordRetriever = new CassandraRolePasswordRetriever(state);
