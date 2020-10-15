@@ -1,0 +1,188 @@
+# Instaclustr LDAP Authenticator
+
+image:https://circleci.com/gh/instaclustr/cassandra-ldap.svg?style=svg["Instaclustr",link="https://circleci.com/gh/instaclustr/cassandra-ldap"]
+
+This is a pluggable authentication implementation for Apache Cassandra, providing a way to authenticate
+and create users based on a configured LDAP server. This implementation purely provides authentication only.
+Role management must be performed through the usual Cassandra role management, CassandraAuthorizer.
+See **How it works** for more details.
+
+## Project structure & building
+
+This project consists of 5 modules, `base` module is a module which all other implementation modules
+depend on. It contains core implementation necessary so all concrete modules are just reusing it.
+
+`base` module depends on Cassandra dependency of version 3.0.18 but its scope is `provided` as
+these classes will be present when such plugin as a whole is put on a class path of Cassandra in runtime.
+
+There are four implementation modules:
+
+* cassandra-2.2 - builds against version 2.2.18
+* cassandra-3.0 - builds against version 3.0.18
+* cassandra-3.11 - builds against version 3.11.8
+* cassandra-4.0 - builds against version 4.0-beta2
+
+Project is built like:
+
+```
+$ mvn clean install
+```
+
+This does _not_ invoke integration tests. For integration tests to run, please specify `it` profile:
+
+```
+$ mvn clean install -Pit
+```
+
+Integration tests will expect a Docker installation present (or a way to connect to one), there
+is a Docker container started with LDAP server running against which an integration test, per module,
+is started.
+
+## Configuration of plugin
+
+After build, respective JAR to place to Cassandra `CLASSPATH` (e.g. by placing it to `libs` directory
+of Cassandra installation) is located in `target` directory of each build as `casandra-ldap-{c* version}.jar`.
+This JAR already contains artifact from `base` so you do not need to take care of it - one JAR is enough.
+You may the most probably use a plugin built against a respective version for other Cassandra
+versions of the same minor release so you might use 3.11.8 plugin for 3.11.4, for example.
+
+The configuration is ridden by configuration file and system property you need to start Cassandra with
+to point that plugin to a configuration file to read properties from.
+
+The system property is `-Dcassandra.ldap.properties.file=/path/to/configiration.properties`. If
+not set, it will try to resolve `$CASSANDRA_CONF/ldap.properties`.
+
+The content of the configuration file is as following:
+
+
+|===
+|property name |explanation
+
+|ldap_uri
+|Ldap server URI. Specify ldaps when using a secure LDAP port (strongly recommended), example: `ldap://127.0.0.1:389/dc=example,dc=org`
+
+|context_factory
+|defaults to `com.sun.jndi.ldap.LdapCtxFactory`
+
+|anonymous_access
+|Anonymous access on LDAP server. If this is true you don't need a service user (not recommended)
+
+|service_dn
+|Service user distinguished name. This user will be a SUPERUSER and be used for looking up user details on authentication, example: `cn=admin,dc=example,dc=org`
+
+|service_password
+|Service user password
+
+|ldap_naming_attribute
+|Use this setting if you need to change your naming attribute from the usual cn=
+
+|auth_cache_enabled
+|relevant for Cassandra 3.11 and 4.0 plugins, defaults to `false`
+
+|auth_bcrypt_gensalt_log2_rounds
+|number of rounds to hash passwords
+|===
+
+
+## Configuration of Cassandra
+
+If is *strongly* recommended to use `NetworkTopologyStrategy` for your `system_auth keyspace`.
+
+
+Please be sure that `system_auth` keyspace uses `NetworkTopologyStrategy` with number of replicas equal to number of nodes in DC. If it is not
+the case, you can alter your keyspace like:
+
+    ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'dc1': '3'}  AND durable_writes = true;
+
+After this, repair `system_auth` keyspace so it all propagates to other nodes.
+
+They you need to restart your cluster in a rolling fashion. For each node, you need to put this configuration
+into `cassandra.yaml` for each node:
+
+### Cassandra 2.2
+
+```
+authenticator: Cassandra22LDAPAuthenticator
+role_manager: LDAPCassandraRoleManager
+authorizer: CassandraAuthorizer
+```
+
+### Cassandra 3.0
+
+```
+authenticator: Cassandra30LDAPAuthenticator
+role_manager: LDAPCassandraRoleManager
+authorizer: CassandraAuthorizer
+```
+
+### Cassandra 3.11
+
+```
+authenticator: LDAPAuthenticator
+authorizer: CassandraAuthorizer
+role_manager: LDAPCassandraRoleManager
+```
+
+### Cassandra 4.0
+
+```
+authenticator: LDAPAuthenticator
+authorizer: CassandraAuthorizer
+role_manager: LDAPCassandraRoleManager
+```
+
+For 3.11 and 4, configure credential caching parameters in `cassandra.yaml` if necessary and if you want
+that cache to be enabled (as per configuration parameters). [Re]start Cassandra.
+
+
+## Example
+
+For fast testing there is Debian OpenLDAP Docker container
+
+    docker run -e LDAP_ADMIN_PASSWORD=admin --rm -d -p 389:389 --name ldap1 osixia/openldap
+
+The `ldap.configuration` file in `conf` directory does not need to be changed and with the above `docker run`, it will work out of the box. You just
+have to put it in `$CASSANDRA_CONF` or set respective configuration propery as described above.
+
+## How it works
+
+LDAPAuthenticator currently supports plain text authorisation requests only in the form of a username and password.
+This request is made to the LDAP server over plain text, so you should be using client encryption on the Cassandra
+side and secure ldap (ldaps) on the LDAP side.
+
+Credentials are sent from your client to the Cassandra server and then tested against the LDAP server for
+authentication using a specified service account. This service account should be configured in the `ldap.properties`
+file using the `service_dn` and `service_password` properties. If `service_dn` is set, such role will be created in database,
+when not already present, upon node's start.
+
+`service_dn` account which will be automatically created will be super user in Cassandra.
+
+All "normal" roles are not affected they behave exactly as you are used to.
+
+If LDAP server connection is lost or there is other communication error while talking to LDAP server,
+operator has still a possibility to log in via `cassandra` user as usually and until LDAP server is not back again,
+users meant to be authenticated against LDAP server will not be able to log in but all "normal" users will be able to
+login and the disruption of LDAP communication will not affect their ability to do so as they live in Cassandra natively.
+
+In case there are two logins of same name (e.g. `admin` in LDAP and `admin` in C*),
+in order to distinguish them, if you want to login with LDAP user, you have to
+specify its full account name, e.g
+
+    cqlsh -u cn=admin,dn=example,dn=org
+
+In case user specifies just `admin` as login name (or any other name, for that matter), it will try to
+authenticate against database first and if not successful, against LDAP, adding all details (cn= etc ...) to username automatically.
+
+It is possible to delete administration role (e.g. role `cassandra`) but if one does that, all administration operations are possible to
+be done only via LDAP account. In case LDAP is down, operator would not have any control over DB as `cassandra` is not present anymore.
+In such case, it is recommended to create another admin-like user with strong password _before_ `cassandra` role is deleted. Plugin is internally creating new roles
+when somebody from LDAP logs in and it is not in DB yet - for this functionality, there needs to be some admin-like user which writes them `system_auth.roles` table.
+If you delete `cassandra` user, there is suddenly not such user. You have to restart node and specify this property
+
+    -Dcassandra.ldap.admin.user=dba
+
+Where `dba` is _new_ superuser which is able to write to `system_auth.roles` and acts as Cassandra admin.
+
+## Further Information
+- See blog by Kurt Greaves ["Apache Cassandra LDAP Authentication"](https://www.instaclustr.com/apache-cassandra-ldap-authentication/)
+- Please see https://www.instaclustr.com/support/documentation/announcements/instaclustr-open-source-project-status/ for Instaclustr support status of this project

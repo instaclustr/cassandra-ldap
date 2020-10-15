@@ -1,3 +1,8 @@
+cassandra-2.2/dependency-reduced-pom.xml
+cassandra-3.0/dependency-reduced-pom.xml
+cassandra-3.11/dependency-reduced-pom.xml
+cassandra-4.0/dependency-reduced-pom.xml
+
 # Compiled class file
 *.class
 

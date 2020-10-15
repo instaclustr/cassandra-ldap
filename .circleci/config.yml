@@ -1,8 +1,8 @@
-version: 2
+version: 2.1
 jobs:
   build:
-    docker:
-      - image: circleci/openjdk:8-jdk
+    machine:
+      image: ubuntu-1604:202007-01
 
     working_directory: ~/cassandra-ldap
 
@@ -10,6 +10,39 @@ jobs:
       MAVEN_OPTS: -Xmx3200m
 
     steps:
+
+      - checkout
+
+      - restore_cache:
+          keys:
+            - m2-{{ checksum "pom.xml" }}
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: m2-{{ checksum "pom.xml" }}
+
+      - run: mvn clean install
+
+      - persist_to_workspace:
+          root: ~/cassandra-ldap
+          paths:
+            - "cassandra-2.2/target/cassandra-ldap-2.2.18.jar"
+            - "cassandra-3.0/target/cassandra-ldap-*.jar"
+            - "cassandra-3.11/target/cassandra-ldap-*.jar"
+            - "cassandra-4.0/target/cassandra-ldap-*.jar"
+
+  build-2-2:
+    machine:
+      image: ubuntu-1604:202007-01
+
+    working_directory: ~/cassandra-ldap
+
+    environment:
+      MAVEN_OPTS: -Xmx3200m
+
+    steps:
+
       - checkout
 
       - restore_cache:
@@ -17,7 +50,7 @@ jobs:
             - m2-{{ checksum "pom.xml" }}
             - m2-
 
-      - run: mvn package
+      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
 
       - save_cache:
           paths:
@@ -25,23 +58,152 @@ jobs:
           key: m2-{{ checksum "pom.xml" }}
 
       - persist_to_workspace:
-          root: ~/cassandra-ldap/target
+          root: /tmp/artifacts
           paths:
-            - "*.jar"
+            - "cassandra-ldap-2.2*.jar"
 
-  publish-github-release:
+  build-3-0:
+    machine:
+      image: ubuntu-1604:202007-01
+
+    working_directory: ~/cassandra-ldap
+
+    environment:
+      MAVEN_OPTS: -Xmx3200m
+
+    steps:
+
+      - checkout
+
+      - restore_cache:
+          keys:
+            - m2-{{ checksum "pom.xml" }}
+            - m2-
+
+      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: m2-{{ checksum "pom.xml" }}
+
+      - persist_to_workspace:
+          root: /tmp/artifacts
+          paths:
+            - "cassandra-ldap-3.0*.jar"
+
+  build-3-11:
+    machine:
+      image: ubuntu-1604:202007-01
+
+    working_directory: ~/cassandra-ldap
+
+    environment:
+      MAVEN_OPTS: -Xmx3200m
+
+    steps:
+
+      - checkout
+
+      - restore_cache:
+          keys:
+            - m2-{{ checksum "pom.xml" }}
+            - m2-
+
+      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: m2-{{ checksum "pom.xml" }}
+
+      - persist_to_workspace:
+          root: /tmp/artifacts
+          paths:
+            - "cassandra-ldap-3.11*.jar"
+
+  build-4-0:
+    machine:
+      image: ubuntu-1604:202007-01
+
+    working_directory: ~/cassandra-ldap
+
+    environment:
+      MAVEN_OPTS: -Xmx3200m
+
+    steps:
+
+      - checkout
+
+      - restore_cache:
+          keys:
+            - m2-{{ checksum "pom.xml" }}
+            - m2-
+
+      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: m2-{{ checksum "pom.xml" }}
+
+      - persist_to_workspace:
+          root: /tmp/artifacts
+          paths:
+            - "cassandra-ldap-4.0*.jar"
+
+  publish-github-release-2-2:
     docker:
-      - image: circleci/golang:1.8
+      - image: circleci/golang
     steps:
       - attach_workspace:
           at: ./artifacts
       - run:
-          name: "Publish Release on GitHub"
+          name: "Publish 2.2 Release on GitHub"
           command: |
             set -xue
             go get github.com/tcnksm/ghr
             ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
 
+
+  publish-github-release-3-0:
+    docker:
+      - image: circleci/golang
+    steps:
+      - attach_workspace:
+          at: ./artifacts
+      - run:
+          name: "Publish 3.0 Release on GitHub"
+          command: |
+            set -xue
+            go get github.com/tcnksm/ghr
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
+
+  publish-github-release-3-11:
+    docker:
+      - image: circleci/golang
+    steps:
+      - attach_workspace:
+          at: ./artifacts
+      - run:
+          name: "Publish 3.11 Release on GitHub"
+          command: |
+            set -xue
+            go get github.com/tcnksm/ghr
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
+
+  publish-github-release-4-0:
+    docker:
+      - image: circleci/golang
+    steps:
+      - attach_workspace:
+          at: ./artifacts
+      - run:
+          name: "Publish 4.0 Release on GitHub"
+          command: |
+            set -xue
+            go get github.com/tcnksm/ghr
+            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
 
 workflows:
   version: 2
@@ -51,11 +213,59 @@ workflows:
           filters:
             tags:
               only: /^v\d+\.\d+\.\d+$/
-      - publish-github-release:
-          requires:
-            - build
+      - build-2-2:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v\d+\.\d+\.\d+$/
+              only: /^v2.2.\d+\-\d+\.\d+\.\d+$/
+      - build-3-0:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v3.0.\d+\-\d+\.\d+\.\d+$/
+      - build-3-11:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v3.11.\d+\-\d+\.\d+\.\d+$/
+      - build-4-0:
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v4.0.\d+\-\d+\.\d+\.\d+$/
+      - publish-github-release-2-2:
+          requires:
+            - build-2-2
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v2.2.\d+\-\d+\.\d+\.\d+$/
+      - publish-github-release-3-0:
+          requires:
+            - build-3-0
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v3.0.\d+\-\d+\.\d+\.\d+$/
+      - publish-github-release-3-11:
+          requires:
+            - build-3-11
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v3.11.\d+\-\d+\.\d+\.\d+$/
+      - publish-github-release-4-0:
+          requires:
+            - build-4-0
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v4.0-beta2-\d+\.\d+\.\d+$/
