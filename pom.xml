@@ -56,8 +56,7 @@
     </distributionManagement>
     
     <properties>
-        <maintainer>Stefan Miklosovic &lt;stefan.miklosovic@instaclustr.com&gt;</maintainer>
-        
+        <maintainer>Stefan Miklosovic &lt;stefan.miklosovic@instaclustr.com&gt;</maintainer>  
         <maven.javadoc.plugin.version>3.1.1</maven.javadoc.plugin.version>
         <maven.source.plugin.version>3.1.0</maven.source.plugin.version>
         <maven.gpg.plugin.version>1.6</maven.gpg.plugin.version>
