@@ -41,7 +41,7 @@ public class Cassandra22LDAPIntegrationTest extends AbstractLDAPTesting
     {
         File[] singleFile = Maven.resolver()
             .loadPomFromFile("pom.xml")
-            .resolve("com.instaclustr:cassandra-ldap-2.2:1.0.1-SNAPSHOT")
+            .resolve("com.instaclustr:cassandra-ldap-2.2:1.0.1")
             .withTransitivity()
             .asFile();
 

@@ -16,7 +16,7 @@
      -->
     
     <artifactId>cassandra-ldap-base</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.1</version>
     
     <name>Cassandra LDAP Authenticator common code</name>
     <description>Common code for Apache Cassandra LDAP plugin</description>
