@@ -75,7 +75,7 @@
             <scope>test</scope>
             <type>pom</type>
         </dependency>
-    
+        
         <dependency>
             <groupId>com.instaclustr</groupId>
             <artifactId>cassandra-ldap-base</artifactId>
@@ -141,6 +141,31 @@
                 <groupId>io.fabric8</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
                 <version>${maven.docker.plugin}</version>
+            </plugin>
+            <plugin>
+                <artifactId>jdeb</artifactId>
+                <groupId>org.vafer</groupId>
+            </plugin>
+            <plugin>
+                <groupId>de.dentrassi.maven</groupId>
+                <artifactId>rpm</artifactId>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>rpm</goal>
+                        </goals>
+                        <configuration>
+                            <requires>
+                                <require>
+                                    <name>cassandra</name>
+                                    <version>3.0</version>
+                                    <greaterOrEqual/>
+                                </require>
+                            </requires>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -56,6 +56,8 @@
     </distributionManagement>
     
     <properties>
+        <maintainer>Stefan Miklosovic &lt;stefan.miklosovic@instaclustr.com&gt;</maintainer>
+        
         <maven.javadoc.plugin.version>3.1.1</maven.javadoc.plugin.version>
         <maven.source.plugin.version>3.1.0</maven.source.plugin.version>
         <maven.gpg.plugin.version>1.6</maven.gpg.plugin.version>
@@ -66,6 +68,8 @@
         <maven.surefire.plugin>2.22.2</maven.surefire.plugin>
         <maven.docker.plugin>0.34.1</maven.docker.plugin>
         <maven.build.helper.plugin>3.0.0</maven.build.helper.plugin>
+        <version.jdeb>1.8</version.jdeb>
+        <version.rpm>1.5.0</version.rpm>
         
         <deploy.skip.parent>true</deploy.skip.parent>
         <outputDirectory>${project.build.directory}</outputDirectory>
@@ -149,6 +153,72 @@
                             <goals>
                                 <goal>shade</goal>
                             </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>org.vafer</groupId>
+                    <artifactId>jdeb</artifactId>
+                    <version>${version.jdeb}</version>
+                    
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>jdeb</goal>
+                            </goals>
+                            <configuration>
+                                <name>${project.artifactId}</name>
+                                <deb>${outputDirectory}/[[name]]_${project.version}.deb</deb>
+                                <dataSet>
+                                    <data>
+                                        <src>${project.build.directory}/${project.build.finalName}.jar</src>
+                                        <type>file</type>
+                                        <mapper>
+                                            <type>perm</type>
+                                            <prefix>/usr/share/cassandra/lib</prefix>
+                                        </mapper>
+                                    </data>
+                                    <data>
+                                        <src>${project.basedir}/../conf/ldap.properties</src>
+                                        <type>file</type>
+                                        <mapper>
+                                            <type>perm</type>
+                                            <prefix>/etc/cassandra/ldap.properties</prefix>
+                                        </mapper>
+                                    </data>
+                                </dataSet>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                <plugin>
+                    <groupId>de.dentrassi.maven</groupId>
+                    <artifactId>rpm</artifactId>
+                    <version>${version.rpm}</version>
+                    <executions>
+                        <execution>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>rpm</goal>
+                            </goals>
+                            <configuration>
+                                <packageName>${project.artifactId}</packageName>
+                                <group>Applications/Databases</group>
+                                <packager>${maintainer}</packager>
+                                <skipSigning>true</skipSigning>
+                                <entries>
+                                    <entry>
+                                        <name>/usr/share/cassandra/lib/${project.build.finalName}.jar</name>
+                                        <file>${project.build.directory}/${project.build.finalName}.jar</file>
+                                    </entry>
+                                    <entry>
+                                        <name>/etc/cassandra/ldap.properties</name>
+                                        <file>${project.basedir}/../conf/ldap.properties</file>
+                                    </entry>
+                                </entries>
+                                <targetDir>${outputDirectory}</targetDir>
+                            </configuration>
                         </execution>
                     </executions>
                 </plugin>

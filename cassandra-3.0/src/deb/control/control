@@ -1,0 +1,7 @@
+Package: [[name]]
+Version: [[version]]
+Section: misc
+Priority: optional
+Architecture: all
+Depends: cassandra (>= 3.0)
+Maintainer: [[maintainer]]

@@ -27,10 +27,10 @@ jobs:
       - persist_to_workspace:
           root: ~/cassandra-ldap
           paths:
-            - "cassandra-2.2/target/cassandra-ldap-2.2.18.jar"
-            - "cassandra-3.0/target/cassandra-ldap-*.jar"
-            - "cassandra-3.11/target/cassandra-ldap-*.jar"
-            - "cassandra-4.0/target/cassandra-ldap-*.jar"
+            - "cassandra-2.2/target/cassandra-ldap-2.2.18*.jar"
+            - "cassandra-3.0/target/cassandra-ldap-3.0*.jar"
+            - "cassandra-3.11/target/cassandra-ldap-3.11*.jar"
+            - "cassandra-4.0/target/cassandra-ldap-4.0*.jar"
 
   build-2-2:
     machine:
@@ -61,6 +61,8 @@ jobs:
           root: /tmp/artifacts
           paths:
             - "cassandra-ldap-2.2*.jar"
+            - "cassandra-ldap-2.2*.deb"
+            - "cassandra-ldap-2.2*.rpm"
 
   build-3-0:
     machine:
@@ -91,6 +93,8 @@ jobs:
           root: /tmp/artifacts
           paths:
             - "cassandra-ldap-3.0*.jar"
+            - "cassandra-ldap-3.0*.deb"
+            - "cassandra-ldap-3.0*.rpm"
 
   build-3-11:
     machine:
@@ -121,6 +125,8 @@ jobs:
           root: /tmp/artifacts
           paths:
             - "cassandra-ldap-3.11*.jar"
+            - "cassandra-ldap-3.11*.deb"
+            - "cassandra-ldap-3.11*.rpm"
 
   build-4-0:
     machine:
@@ -151,6 +157,8 @@ jobs:
           root: /tmp/artifacts
           paths:
             - "cassandra-ldap-4.0*.jar"
+            - "cassandra-ldap-4.0*.deb"
+            - "cassandra-ldap-4.0*.rpm"
 
   publish-github-release-2-2:
     docker:
