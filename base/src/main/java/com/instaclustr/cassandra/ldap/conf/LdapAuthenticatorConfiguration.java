@@ -44,8 +44,6 @@ public final class LdapAuthenticatorConfiguration
     // Ldap URI including DN
     public static final String LDAP_URI_PROP = "ldap_uri";
     public static final String CONTEXT_FACTORY_PROP = "context_factory";
-    // Initial connection to LDAP can be anonymous if it's enabled. Won't allow you to connect to C* anonymously.
-    public static final String ANONYMOUS_ACCESS_PROP = "anonymous_access";
 
     // If no anonymous access a default DN and password is required.
     public static final String LDAP_DN = "service_dn";
@@ -60,7 +58,6 @@ public final class LdapAuthenticatorConfiguration
     public static final int GENSALT_LOG2_ROUNDS_DEFAULT = 10;
 
     public static final String DEFAULT_CONTEXT_FACTORY = "com.sun.jndi.ldap.LdapCtxFactory";
-    public static final String DEFAULT_SERVICE_ROLE = "_LDAPAUTH_";
 
     public static final String CASSANDRA_LDAP_ADMIN_USER = "cassandra.ldap.admin.user";
 
@@ -122,16 +119,9 @@ public final class LdapAuthenticatorConfiguration
         String serviceDN = properties.getProperty(LDAP_DN);
         String servicePass = properties.getProperty(PASSWORD_KEY);
 
-        if (!parseBoolean(properties.getProperty(ANONYMOUS_ACCESS_PROP, "false")))
+        if (serviceDN == null || servicePass == null)
         {
-
-            if (serviceDN == null || servicePass == null)
-            {
-                throw new ConfigurationException(format("You must specify both %s and %s if %s is false.",
-                                                        LDAP_DN,
-                                                        PASSWORD_KEY,
-                                                        ANONYMOUS_ACCESS_PROP));
-            }
+            throw new ConfigurationException(format("You must specify both %s and %s.", LDAP_DN, PASSWORD_KEY));
         }
 
         if (properties.getProperty(NAMING_ATTRIBUTE_PROP) == null)

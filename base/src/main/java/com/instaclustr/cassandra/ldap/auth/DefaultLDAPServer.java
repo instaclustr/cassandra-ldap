@@ -17,7 +17,6 @@
  */
 package com.instaclustr.cassandra.ldap.auth;
 
-import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
 
 import javax.naming.Context;
@@ -33,7 +32,6 @@ import java.util.Properties;
 import com.instaclustr.cassandra.ldap.User;
 import com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration;
 import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
-import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.ExceptionCode;
@@ -95,21 +93,14 @@ public class DefaultLDAPServer extends LDAPPasswordRetriever
 
         try
         {
-            if (parseBoolean(properties.getProperty(LdapAuthenticatorConfiguration.ANONYMOUS_ACCESS_PROP)))
-            {
-                // Anonymous
-                serviceContext = new InitialDirContext(properties);
-                clientState.login(new AuthenticatedUser(LdapAuthenticatorConfiguration.DEFAULT_SERVICE_ROLE));
-            } else
-            {
-                final String serviceDN = properties.getProperty(LdapAuthenticatorConfiguration.LDAP_DN);
-                final String servicePass = properties.getProperty(LdapAuthenticatorConfiguration.PASSWORD_KEY);
+            final String serviceDN = properties.getProperty(LdapAuthenticatorConfiguration.LDAP_DN);
+            final String servicePass = properties.getProperty(LdapAuthenticatorConfiguration.PASSWORD_KEY);
 
-                properties.put(Context.SECURITY_PRINCIPAL, serviceDN);
-                properties.put(Context.SECURITY_CREDENTIALS, servicePass);
+            properties.put(Context.SECURITY_PRINCIPAL, serviceDN);
+            properties.put(Context.SECURITY_CREDENTIALS, servicePass);
 
-                serviceContext = new InitialDirContext(properties);
-            }
+            serviceContext = new InitialDirContext(properties);
+
         } catch (NamingException ex)
         {
             throw new ConfigurationException(format("Failed to connect to LDAP server: %s, explanation: %s",

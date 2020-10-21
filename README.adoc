@@ -64,9 +64,6 @@ The content of the configuration file is as following:
 |context_factory
 |defaults to `com.sun.jndi.ldap.LdapCtxFactory`
 
-|anonymous_access
-|Anonymous access on LDAP server. If this is true you don't need a service user (not recommended)
-
 |service_dn
 |Service user distinguished name. This user will be a SUPERUSER and be used for looking up user details on authentication, example: `cn=admin,dc=example,dc=org`
 
