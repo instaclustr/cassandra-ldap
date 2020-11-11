@@ -146,7 +146,7 @@ public abstract class AbstractLDAPTesting
 
     public String getCassandraVersion()
     {
-        return System.getProperty("cassandra.version", "3.11.8");
+        return System.getProperty("cassandra.version", "3.11.9");
     }
 
     public EmbeddedCassandraFactory defaultNodeFactory()

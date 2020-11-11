@@ -19,7 +19,7 @@ public class Cassandra40LDAPIntegrationTest extends AbstractLDAPTesting
 
     public String getCassandraVersion()
     {
-        return System.getProperty("cassandra.version", "4.0-beta2");
+        return System.getProperty("cassandra.version", "4.0-beta3");
     }
 
     @Override

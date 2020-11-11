@@ -19,7 +19,7 @@ public class Cassandra30LDAPIntegrationTest extends AbstractLDAPTesting
 
     public String getCassandraVersion()
     {
-        return System.getProperty("cassandra.version", "3.0.18");
+        return System.getProperty("cassandra.version", "3.0.23");
     }
 
     @Override

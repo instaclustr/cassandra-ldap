@@ -16,7 +16,7 @@
      -->
     
     <artifactId>cassandra-ldap-base</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     
     <name>Cassandra LDAP Authenticator common code</name>
     <description>Common code for Apache Cassandra LDAP plugin</description>
@@ -33,7 +33,7 @@
         <dependency>
             <groupId>org.apache.cassandra</groupId>
             <artifactId>cassandra-all</artifactId>
-            <version>3.0.22</version>
+            <version>3.0.23</version>
             <scope>provided</scope>
         </dependency>
         

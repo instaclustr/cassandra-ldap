@@ -11,13 +11,13 @@
     </parent>
     
     <artifactId>cassandra-ldap-4.0</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
     
     <name>Cassandra LDAP Authenticator for Cassandra 4.0</name>
     <description>Pluggable LDAP authentication implementation for Apache Cassandra 4.0</description>
     
     <properties>
-        <version.cassandra.all>4.0-beta2</version.cassandra.all>
+        <version.cassandra.all>4.0-beta3</version.cassandra.all>
         
         <version.shrinkwrap.bom>1.2.6</version.shrinkwrap.bom>
         <version.shrinkwrap.resolvers>3.1.3</version.shrinkwrap.resolvers>
@@ -51,7 +51,7 @@
         <dependency>
             <groupId>com.instaclustr</groupId>
             <artifactId>cassandra-ldap-base</artifactId>
-            <version>1.0.1</version>
+            <version>1.0.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.cassandra</groupId>
@@ -116,7 +116,7 @@
             <artifactId>cassandra-ldap-base</artifactId>
             <classifier>tests</classifier>
             <type>test-jar</type>
-            <version>1.0.1</version>
+            <version>1.0.2</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>
