@@ -24,12 +24,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ServiceLoader;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.auth.AuthKeyspace;
-import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,22 +73,5 @@ public class ServiceUtils
         logger.info(format("Using implementation of %s: %s", clazz.getName(), services.get(0).getClass().getName()));
 
         return services.get(0);
-    }
-
-    public static ScheduledFuture<?> scheduleSetupTask(final Callable<Void> setupTask)
-    {
-        // The delay is to give the node a chance to see its peers before attempting the operation
-        return ScheduledExecutors.optionalTasks.schedule(() ->
-                                                         {
-                                                             try
-                                                             {
-                                                                 setupTask.call();
-                                                             } catch (Exception e)
-                                                             {
-                                                                 e.printStackTrace();
-                                                                 logger.info("Setup task in failed with error, rescheduling: {}", e.getMessage());
-                                                                 scheduleSetupTask(setupTask);
-                                                             }
-                                                         }, AuthKeyspace.SUPERUSER_SETUP_DELAY, TimeUnit.MILLISECONDS);
     }
 }
