@@ -5,7 +5,7 @@ _LDAP Authenticator for Apache Cassandra_
 image:https://circleci.com/gh/instaclustr/cassandra-ldap.svg?style=svg["Instaclustr",link="https://circleci.com/gh/instaclustr/cassandra-ldap"]
 
 - Website: https://www.instaclustr.com/
-- Documentation: [https://www.instaclustr.com/support/documentation/)
+- Documentation: https://www.instaclustr.com/support/documentation/
 
 This is a pluggable authentication implementation for Apache Cassandra, providing a way to authenticate
 and create users based on a configured LDAP server. This implementation provides authentication only.
@@ -22,10 +22,10 @@ these classes will be present when such plugin as a whole is put on a class path
 
 There are four implementation modules:
 
-* cassandra-2.2 - builds against version 2.2.18
-* cassandra-3.0 - builds against version 3.0.18
-* cassandra-3.11 - builds against version 3.11.8
-* cassandra-4.0 - builds against version 4.0-beta2
+* cassandra-2.2 - builds against version 2.2.19
+* cassandra-3.0 - builds against version 3.0.23
+* cassandra-3.11 - builds against version 3.11.9
+* cassandra-4.0 - builds against version 4.0-beta3
 
 Project is built as:
 
@@ -136,7 +136,6 @@ role_manager: LDAPCassandraRoleManager
 For 3.11 and 4, configure credential caching parameters in `cassandra.yaml` if necessary and if you want
 that cache to be enabled (as per configuration parameters). [Re]start Cassandra.
 
-
 ## Example
 
 For fast testing there is Debian OpenLDAP Docker container
@@ -185,6 +184,21 @@ If you delete `cassandra` user, there is suddenly not such user. You have to res
 
 Where `dba` is _new_ superuser which is able to write to `system_auth.roles` and acts as Cassandra admin.
 
+## SPI for LDAP server implementations (advanced)
+
+In order to talk to a LDAP server, there is `DefaultLDAPServer` class in `base` module which all modules are using.
+However, it might not be enough - there is a lot of LDAP servers out there and their internals and configuration
+might render the default implementation incompatible. If you have special requirements, you might provide your
+own implementation by extending `DefaultLDAPServer` and overriding what is necessary. You might as well
+extend and implement `LDAPPasswordRetriever` class. `DefaultLDAPServer` just extends it.
+
+To tell LDAP plugin to use your implementation, you need to create a file in `src/main/resources/META-INF/services`
+called `com.instaclustr.cassandra.ldap.auth.LDAPPasswordRetriever` and the content of that file needs to
+be just one line - the fully qualified class name (with package) of your custom implementation.
+
+After you build such plugin, the SPI mechanism upon plugin's initialisation during Cassandra node startup
+will pick up your custom LDAP server connection / authentication logic.
+
 ## Further Information
-- See blog by Kurt Greaves ["Apache Cassandra LDAP Authentication"](https://www.instaclustr.com/apache-cassandra-ldap-authentication/)
+- See blog by Kurt Greaves https://www.instaclustr.com/apache-cassandra-ldap-authentication/[Apache Cassandra LDAP Authentication]
 - Please see https://www.instaclustr.com/support/documentation/announcements/instaclustr-open-source-project-status/ for Instaclustr support status of this project
