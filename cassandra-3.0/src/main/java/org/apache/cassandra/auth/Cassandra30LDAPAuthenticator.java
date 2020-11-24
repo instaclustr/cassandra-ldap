@@ -21,7 +21,6 @@ package org.apache.cassandra.auth;
 import java.net.InetAddress;
 
 import com.instaclustr.cassandra.ldap.PlainTextSaslAuthenticator;
-import org.apache.cassandra.auth.LegacyCassandraLDAPAuthenticator;
 
 /**
  * Uses JNDI to authenticate to an LDAP server. On successful authentication a Cassandra role is created for the provided

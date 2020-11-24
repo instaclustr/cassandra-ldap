@@ -1,7 +1,6 @@
 package org.apache.cassandra.auth;
 
 import com.instaclustr.cassandra.ldap.PlainTextSaslAuthenticator;
-import org.apache.cassandra.auth.LegacyCassandraLDAPAuthenticator;
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
