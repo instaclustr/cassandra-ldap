@@ -10,9 +10,9 @@ batchlog_replay_throttle_in_kb: 1024
 authenticator: LDAPAuthenticator
 authorizer: CassandraAuthorizer
 role_manager: LDAPCassandraRoleManager
-roles_validity_in_ms: 2000
-permissions_validity_in_ms: 2000
-credentials_validity_in_ms: 2000
+roles_validity_in_ms: 20000
+permissions_validity_in_ms: 20000
+credentials_validity_in_ms: 20000
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 cdc_enabled: false
 disk_failure_policy: stop
@@ -107,4 +107,3 @@ back_pressure_strategy:
     parameters:
       - {high_ratio: 0.9, factor: 5, flow: FAST}
 enable_materialized_views: true
-enable_sasi_indexes: true

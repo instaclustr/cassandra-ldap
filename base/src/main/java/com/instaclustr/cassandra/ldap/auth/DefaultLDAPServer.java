@@ -22,223 +22,208 @@ import static java.lang.String.format;
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
-import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Properties;
 
 import com.instaclustr.cassandra.ldap.User;
+import com.instaclustr.cassandra.ldap.auth.DefaultLDAPServer.LDAPInitialContext.CloseableLdapContext;
 import com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration;
 import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
-import org.apache.cassandra.exceptions.AuthenticationException;
+import com.instaclustr.cassandra.ldap.hash.Hasher;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DefaultLDAPServer extends LDAPPasswordRetriever
+public class DefaultLDAPServer extends LDAPUserRetriever
 {
-
     private static final Logger logger = LoggerFactory.getLogger(DefaultLDAPServer.class);
 
-    // Use the service context for the initial connection so we can search for users DNs.
-    private DirContext serviceContext;
-
-    private Properties properties;
-
-    private int rounds;
-
-    @Override
-    public void close()
+    static class LDAPInitialContext implements AutoCloseable
     {
-        if (serviceContext != null)
+        private static final Logger logger = LoggerFactory.getLogger(LDAPInitialContext.class);
+
+        private CloseableLdapContext ldapContext;
+        private Properties properties;
+
+        public LDAPInitialContext(final Properties properties)
         {
-            try
-            {
-                serviceContext.close();
-            } catch (final Exception ex)
-            {
-                logger.error("Unable to close service context.", ex);
-            } finally
-            {
-                serviceContext = null;
-            }
-        }
+            this.properties = properties;
 
-        properties = null;
-    }
+            final Properties ldapProperties = new Properties();
 
-    @Override
-    public void setup() throws ConfigurationException
-    {
-
-        if (serviceContext != null)
-        {
-            try
-            {
-                serviceContext.close();
-            } catch (Exception ex)
-            {
-                logger.warn("Error while closing LDAP service context.", ex);
-            }
-        }
-
-        if (properties == null)
-        {
-            properties = new LdapAuthenticatorConfiguration().parseProperties();
-            rounds = LdapAuthenticatorConfiguration.getGensaltLog2Rounds(properties);
-        }
-
-        try
-        {
             final String serviceDN = properties.getProperty(LdapAuthenticatorConfiguration.LDAP_DN);
             final String servicePass = properties.getProperty(LdapAuthenticatorConfiguration.PASSWORD_KEY);
 
-            properties.put(Context.SECURITY_PRINCIPAL, serviceDN);
-            properties.put(Context.SECURITY_CREDENTIALS, servicePass);
+            ldapProperties.put(Context.INITIAL_CONTEXT_FACTORY, properties.getProperty(LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP));
+            ldapProperties.put(Context.PROVIDER_URL, properties.getProperty(LdapAuthenticatorConfiguration.LDAP_URI_PROP));
+            ldapProperties.put(Context.SECURITY_PRINCIPAL, serviceDN);
+            ldapProperties.put(Context.SECURITY_CREDENTIALS, servicePass);
 
-            serviceContext = new InitialDirContext(properties);
+            try
+            {
+                ldapContext = new CloseableLdapContext(new InitialDirContext(ldapProperties));
+            }
+            catch (final NamingException ex)
+            {
+                throw new ConfigurationException(format("Failed to connect to LDAP server: %s, explanation: %s",
+                                                        ex.getMessage(),
+                                                        ex.getExplanation() == null ? "uknown" : ex.getExplanation()),
+                                                 ex);
+            }
+        }
 
-        } catch (NamingException ex)
+        public static final class CloseableLdapContext implements AutoCloseable
         {
-            throw new ConfigurationException(format("Failed to connect to LDAP server: %s, explanation: %s",
-                                                    ex.getMessage(),
-                                                    ex.getExplanation() == null ? "uknown" : ex.getExplanation()),
-                                             ex);
+
+            private final InitialDirContext context;
+
+            CloseableLdapContext(final InitialDirContext context)
+            {
+                this.context = context;
+            }
+
+            @Override
+            public void close() throws Exception
+            {
+                if (context != null)
+                {
+                    context.close();
+                }
+            }
+        }
+
+        public String searchLdapDN(final String username) throws NamingException
+        {
+            final String filterTemplate = properties.getProperty(LdapAuthenticatorConfiguration.FILTER_TEMPLATE);
+            final String filter = format(filterTemplate, username);
+
+            logger.debug(String.format("User name is %s, going to use filter: %s", username, filter));
+
+            String dn = null;
+
+            final SearchControls searchControls = new SearchControls();
+            searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
+
+            NamingEnumeration<SearchResult> answer = null;
+
+            try
+            {
+
+                answer = ldapContext.context.search("", filter, searchControls);
+
+                final List<String> resolvedDns = new ArrayList<>();
+
+                if (answer.hasMore())
+                {
+                    SearchResult result = answer.next();
+                    dn = result.getNameInNamespace();
+                    resolvedDns.add(dn);
+                }
+
+                if (resolvedDns.size() != 1 || resolvedDns.get(0) == null)
+                {
+                    throw new NamingException(String.format("There is not one DN resolved after search on filter %s: %s. "
+                                                                + "User likely does not exist or connection to LDAP server is invalid.", filter, resolvedDns));
+                }
+
+                logger.debug("Returning DN: " + resolvedDns.get(0));
+
+                return dn;
+            } catch (final NamingException ex)
+            {
+                if (answer != null)
+                {
+                    try
+                    {
+                        answer.close();
+                    } catch (NamingException closingException)
+                    {
+                        logger.warn("Failing to close connection to LDAP server.");
+                    }
+                }
+
+                logger.error("Error while searching! " + ex.toString(true) + " explanation: " + ex.getExplanation(), ex);
+
+                throw ex;
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (ldapContext != null)
+            {
+                try
+                {
+                    ldapContext.close();
+                }
+                catch (final Exception ex)
+                {
+                    throw new IOException(ex);
+                }
+            }
         }
     }
 
-    /**
-     * Authenticate to LDAP server as provided DN.
-     *
-     * @param user {@link User} to authenticate
-     * @return password of user
-     * @throws LDAPAuthFailedException if authentication fails or other error occurs.
-     */
     @Override
-    public String retrieveHashedPassword(User user) throws LDAPAuthFailedException
+    public UserRetriever setup(final Hasher hasher, final Properties properties) throws ConfigurationException
     {
-        DirContext ctx = null;
-
-        try
-        {
-            String ldapDn = getLdapDN(user.getUsername());
-
-            if (ldapDn == null)
-            {
-                throw new AuthenticationException(String.format("Could not authenticate to directory server using naming attribute %s and username %s. "
-                                                                    + "User likely does not exist or connection to LDAP server is invalid.",
-                                                                properties.getProperty(LdapAuthenticatorConfiguration.NAMING_ATTRIBUTE_PROP),
-                                                                user.getUsername()));
-            }
-
-            user.setLdapDN(ldapDn);
-
-            final Hashtable<String, String> env = getUserEnv(user.getLdapDN(), user.getPassword());
-
-            ctx = new InitialDirContext(env);
-        } catch (NamingException ex)
-        {
-            throw new LDAPAuthFailedException(ExceptionCode.BAD_CREDENTIALS, ex.getMessage(), ex);
-        } finally
-        {
-            if (ctx != null)
-            {
-                try
-                {
-                    ctx.close();
-                } catch (NamingException ex)
-                {
-                    logger.debug("Exception occured while trying to close DirContext.", ex);
-                }
-            }
-        }
-
-        return hasher.hashPassword(user.getPassword(), rounds);
+        this.properties = properties;
+        this.hasher = hasher;
+        return this;
     }
 
-    private String searchLdapDN(String username) throws NamingException
+    @Override
+    public User retrieve(User user) throws LDAPAuthFailedException
     {
-        final String filter = format("(%s=%s)",
-                                     properties.getProperty(LdapAuthenticatorConfiguration.NAMING_ATTRIBUTE_PROP),
-                                     username);
-
-        String dn = null;
-
-        final SearchControls searchControls = new SearchControls();
-        searchControls.setSearchScope(SearchControls.SUBTREE_SCOPE);
-
-        NamingEnumeration<SearchResult> answer = null;
-
-        try
+        try (final LDAPInitialContext context = new LDAPInitialContext(properties))
         {
+            final String ldapDn = context.searchLdapDN(user.getUsername());
 
-            answer = serviceContext.search("", filter, searchControls);
+            logger.debug(String.format("Resolved LDAP DN: %s", ldapDn));
 
-            if (answer.hasMore())
+            final Hashtable<String, String> env = getUserEnv(ldapDn,
+                                                             user.getPassword(),
+                                                             properties.getProperty(LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP),
+                                                             properties.getProperty(LdapAuthenticatorConfiguration.LDAP_URI_PROP));
+
+            try (final CloseableLdapContext ldapContext = new CloseableLdapContext(new InitialDirContext(env)))
             {
-                SearchResult result = answer.next();
-                dn = result.getNameInNamespace();
-            }
+                logger.debug("Logging to LDAP with {} was ok!", user.toString());
 
-            return dn;
-        } catch (NamingException ex)
+                final User foundUser = new User(user.getUsername(),
+                                          hasher.hashPassword(user.getPassword(),
+                                                              LdapAuthenticatorConfiguration.getGensaltLog2Rounds(this.properties)));
+                foundUser.setLdapDN(ldapDn);
+
+                return foundUser;
+            }
+            catch (final NamingException ex)
+            {
+                throw new LDAPAuthFailedException(ExceptionCode.BAD_CREDENTIALS, ex.getMessage(), ex);
+            }
+        }
+        catch (final Exception ex)
         {
-            if (answer != null)
-            {
-                try
-                {
-                    answer.close();
-                } catch (NamingException closingException)
-                {
-                    logger.debug("Failing to close connection to LDAP server.");
-                }
-            }
-
-            throw ex;
+            throw new LDAPAuthFailedException(ExceptionCode.UNAUTHORIZED, "Not possible to login " + user.getUsername(), ex);
         }
     }
 
-
-    /**
-     * Fetch a LDAP DN for a specific user
-     *
-     * @param username Username (CN)
-     * @return DN for user
-     */
-    private String getLdapDN(String username) throws NamingException
+    private Hashtable<String, String> getUserEnv(final String username,
+                                                 final String password,
+                                                 final String initialContextFactory,
+                                                 final String ldapUri)
     {
-        if (serviceContext == null)
-        {
-            setup();
-        }
+        final Hashtable<String, String> env = new Hashtable<>(11);
 
-        try
-        {
-            return searchLdapDN(username);
-        } catch (NamingException ex)
-        {
-            logger.info(ex.getExplanation());
-
-            setup();
-
-            return searchLdapDN(username);
-        }
-    }
-
-    /**
-     * Generate a table of properties for connecting to LDAP server using JNDI
-     *
-     * @return Table containing {@link Context#INITIAL_CONTEXT_FACTORY}, {@link Context#PROVIDER_URL} and {@link Context#SECURITY_AUTHENTICATION} set.
-     */
-    private Hashtable<String, String> getUserEnv(String username, String password)
-    {
-        Hashtable<String, String> env = new Hashtable<>(11);
-
-        env.put(Context.INITIAL_CONTEXT_FACTORY, properties.getProperty(Context.INITIAL_CONTEXT_FACTORY));
-        env.put(Context.PROVIDER_URL, properties.getProperty(LdapAuthenticatorConfiguration.LDAP_URI_PROP));
+        env.put(Context.INITIAL_CONTEXT_FACTORY, initialContextFactory);
+        env.put(Context.PROVIDER_URL, ldapUri);
         env.put(Context.SECURITY_AUTHENTICATION, "simple");
 
         env.put(Context.SECURITY_PRINCIPAL, username);

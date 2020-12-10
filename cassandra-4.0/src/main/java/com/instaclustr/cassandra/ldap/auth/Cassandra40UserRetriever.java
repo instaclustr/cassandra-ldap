@@ -29,7 +29,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage.Rows;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class Cassandra40RolePasswordRetriever extends AbstractCassandraRolePasswordRetriever
+public class Cassandra40UserRetriever extends AbstractCassandraUserRetriever
 {
 
     @Override

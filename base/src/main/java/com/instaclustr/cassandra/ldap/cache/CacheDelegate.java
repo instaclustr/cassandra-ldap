@@ -21,17 +21,13 @@ import java.util.function.Function;
 
 import com.instaclustr.cassandra.ldap.User;
 
-public interface CacheDelegate
-{
+public interface CacheDelegate {
 
-    void invalidate(User user);
+    void invalidate(final User user);
 
-    String get(User user);
+    User get(final User user);
 
-    void init(final Function<User, String> loadingFunction, final boolean enableCache);
-
-    void init(final Function<User, String> passwordAuthLoadingFunction,
-              final Function<User, String> ldapAuthLoadingFunction,
-              final String namingAttributeValue,
-              boolean enableCache);
+    void init(final Function<User, User> cassandraloadingFunction,
+              final Function<User, User> ldapLoadingFunction,
+              final boolean enableCache);
 }

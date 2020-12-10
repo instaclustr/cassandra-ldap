@@ -11,58 +11,74 @@ import org.slf4j.LoggerFactory;
 public class Cassandra4CacheDelegate implements CacheDelegate
 {
 
-    private AuthCache<User, String> cache;
+    private static final Logger logger = LoggerFactory.getLogger(Cassandra4CacheDelegate.class);
+
+    private AuthCache<User, User> cassandraCache;
+    private AuthCache<User, User> ldapCache;
 
     @Override
     public void invalidate(final User user)
     {
-        assert cache != null;
-        this.cache.invalidate(user);
+        assert cassandraCache != null;
+        this.cassandraCache.invalidate(user);
+        this.ldapCache.invalidate(user);
     }
 
     @Override
-    public String get(final User user)
+    public User get(final User user)
     {
-        assert cache != null;
-        return this.cache.get(user);
-    }
+        assert cassandraCache != null;
+        assert ldapCache != null;
 
-    @Override
-    public void init(final Function<User, String> loadingFunction, final boolean enableCache)
-    {
-        if (this.cache != null)
+        try
         {
-            return;
-        }
+            try
+            {
+                User cassandraUser = this.cassandraCache.get(user);
 
-        this.cache = new CredentialsCache(loadingFunction, enableCache);
+                if (cassandraUser != null)
+                {
+                    logger.debug("Fetching user from Cassandra: " + user.toString());
+                    return cassandraUser;
+                }
+            } catch (final Exception ex)
+            {
+                logger.trace("{} not found in Cassandra", user);
+            }
+
+            User ldapUser = this.ldapCache.get(user);
+
+            logger.debug("{} fetched user from LDAP", ldapUser);
+
+            return ldapUser;
+        } catch (final Exception ex)
+        {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Override
-    public void init(final Function<User, String> passwordAuthLoadingFunction,
-                     final Function<User, String> ldapAuthLoadingFunction,
-                     final String namingAttributeValue,
+    public void init(final Function<User, User> cassandraLoadingFunction,
+                     final Function<User, User> ldapLoadingFunction,
                      final boolean enableCache)
     {
-        if (this.cache != null)
+        if (this.cassandraCache != null && this.ldapCache != null)
         {
             return;
         }
 
-        this.cache = new CredentialsCache(new CredentialsLoadingFunction(passwordAuthLoadingFunction,
-                                                                         ldapAuthLoadingFunction,
-                                                                         namingAttributeValue),
-                                          enableCache);
+        this.cassandraCache = new CredentialsCache(cassandraLoadingFunction, "CredentialsCache", enableCache);
+        this.ldapCache = new CredentialsCache(ldapLoadingFunction, "LdapCredentialsCache", enableCache);
     }
 
-    private static class CredentialsCache extends AuthCache<User, String> implements CredentialsCacheMBean
+    private static class CredentialsCache extends AuthCache<User, User> implements CredentialsCacheMBean
     {
 
         private static final Logger logger = LoggerFactory.getLogger(CredentialsCache.class);
 
-        public CredentialsCache(Function<User, String> loadingFunction, boolean enableCache)
+        public CredentialsCache(Function<User, User> loadingFunction, String cacheName, boolean enableCache)
         {
-            super("CredentialsCache",
+            super(cacheName,
                   DatabaseDescriptor::setCredentialsValidity,
                   DatabaseDescriptor::getCredentialsValidity,
                   DatabaseDescriptor::setCredentialsUpdateInterval,
@@ -72,7 +88,7 @@ public class Cassandra4CacheDelegate implements CacheDelegate
                   loadingFunction,
                   () ->
                   {
-                      logger.info(String.format("Using %s, enabled: %s", CredentialsCache.class.getCanonicalName(), enableCache));
+                      logger.info(String.format("Using cache %s, enabled: %s", cacheName, enableCache));
 
                       return enableCache;
                   });

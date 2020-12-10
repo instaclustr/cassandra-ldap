@@ -30,6 +30,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ResultSet;
@@ -80,7 +84,7 @@ public abstract class AbstractLDAPTesting
                             "datacenter1",
                             false);
 
-            Thread.sleep(30000);
+            Thread.sleep(10000);
 
             logger.info("first node ...");
 
@@ -97,16 +101,63 @@ public abstract class AbstractLDAPTesting
             logger.info("first node ...");
 
             context.execute(context.firstNode, "admin", "admin", "select * from system_auth.roles", "datacenter1", true);
-            context.execute(context.firstNode, "cn=admin,dc=example,dc=org", "admin", "select * from system_auth.roles", "datacenter1", true);
 
             Thread.sleep(10000);
 
-//            logger.info("second node ...");
-//
-//            context.execute(context.secondNode, "admin", "admin", "select * from system_auth.roles", "datacenter2", true);
-//            context.execute(context.secondNode, "cn=admin,dc=example,dc=org", "admin", "select * from system_auth.roles", "datacenter2", true);
-
             // even we stop, we can still do stuff
+
+            ExecutorService executorService = Executors.newFixedThreadPool(3);
+
+            final CassandraClusterContext clusterContext = context;
+
+            executorService.submit(new Runnable() {
+
+                final Random r = new Random();
+
+                @Override
+                public void run() {
+                    for (int i = 0; i < 20; i++)
+                    {
+                        clusterContext.execute(clusterContext.firstNode, "stefan", "stefan", "select * from system_auth.roles", "datacenter1", true);
+                        try
+                        {
+                            Thread.sleep(r.nextInt(3000));
+                        } catch (final Exception ex)
+                        {
+
+                        }
+                    }
+
+                    System.out.println("DONE");
+                }
+            });
+
+            executorService.submit(new Runnable()
+            {
+                @Override
+                public void run() {
+
+                    final Random r = new Random();
+
+                    for (int i = 0; i < 20; i++)
+                    {
+                        clusterContext.execute(clusterContext.firstNode, "admin", "admin", "select * from system_auth.roles", "datacenter1", true);
+                        try
+                        {
+                            Thread.sleep(r.nextInt(3000));
+                        } catch (final Exception ex)
+                        {
+
+                        }
+
+                    }
+
+                    System.out.println("DONE");
+                }
+            });
+
+            executorService.shutdown();
+            executorService.awaitTermination(1, TimeUnit.HOURS);
 
             logger.info("stopping second node");
 
@@ -116,7 +167,6 @@ public abstract class AbstractLDAPTesting
 
             context.execute(context.firstNode, "stefan", "stefan", "select * from system_auth.roles", "datacenter1", true);
             context.execute(context.firstNode, "admin", "admin", "select * from system_auth.roles", "datacenter1", true);
-            context.execute(context.firstNode, "cn=admin,dc=example,dc=org", "admin", "select * from system_auth.roles", "datacenter1", true);
         } catch (final Exception ex)
         {
             Assert.fail("Exception occurred!", ex);

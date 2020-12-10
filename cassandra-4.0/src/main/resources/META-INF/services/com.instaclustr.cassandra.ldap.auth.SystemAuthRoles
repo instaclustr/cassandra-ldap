@@ -1,1 +1,1 @@
-com.instaclustr.cassandra.ldap.auth.SystemAuthRolesImpl
+com.instaclustr.cassandra.ldap.auth.Cassandra40SystemAuthRoles

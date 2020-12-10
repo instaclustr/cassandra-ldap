@@ -19,27 +19,23 @@ package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
-import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.LDAP_DN;
-import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.NAMING_ATTRIBUTE_PROP;
 import static com.instaclustr.cassandra.ldap.utils.ServiceUtils.getService;
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
 
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.instaclustr.cassandra.ldap.AbstractLDAPAuthenticator;
 import com.instaclustr.cassandra.ldap.PlainTextSaslAuthenticator;
 import com.instaclustr.cassandra.ldap.User;
-import com.instaclustr.cassandra.ldap.auth.CassandraPasswordRetriever;
-import com.instaclustr.cassandra.ldap.auth.DefaultLDAPServer;
-import com.instaclustr.cassandra.ldap.auth.LDAPPasswordRetriever;
+import com.instaclustr.cassandra.ldap.auth.CassandraUserRetriever;
+import com.instaclustr.cassandra.ldap.auth.DefaultLDAPUserRetriever;
 import com.instaclustr.cassandra.ldap.auth.SystemAuthRoles;
+import com.instaclustr.cassandra.ldap.auth.UserRetriever;
 import com.instaclustr.cassandra.ldap.cache.CacheDelegate;
-import com.instaclustr.cassandra.ldap.cache.CredentialsLoadingFunction;
 import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.AuthenticationException;
@@ -83,17 +79,9 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
         systemAuthRoles = getService(SystemAuthRoles.class, null);
         systemAuthRoles.setClientState(clientState);
 
-        final CassandraPasswordRetriever cassandraPasswordRetriever = getService(CassandraPasswordRetriever.class, null);
+        final CassandraUserRetriever cassandraPasswordRetriever = getService(CassandraUserRetriever.class, null);
         cassandraPasswordRetriever.init(clientState);
 
-        final LDAPPasswordRetriever ldapPasswordRetriever = getService(LDAPPasswordRetriever.class, DefaultLDAPServer.class);
-        try
-        {
-            ldapPasswordRetriever.init(clientState, hasher, properties);
-        } catch (ConfigurationException e)
-        {
-            logger.warn(format("Not possible to connect to LDAP server as user %s.", properties.getProperty(LDAP_DN)), e);
-        }
 
         cacheDelegate = getService(CacheDelegate.class, null);
 
@@ -118,11 +106,11 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
 
         clientState.login(new AuthenticatedUser(adminRole));
 
-        final Function<User, String> credentialsLoadingFunction = new CredentialsLoadingFunction(cassandraPasswordRetriever::retrieveHashedPassword,
-                                                                                                 ldapPasswordRetriever::retrieveHashedPassword,
-                                                                                                 properties.getProperty(NAMING_ATTRIBUTE_PROP));
+        final UserRetriever ldapUserRetriever = new DefaultLDAPUserRetriever(hasher, properties);
 
-        cacheDelegate.init(credentialsLoadingFunction, parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP)));
+        cacheDelegate.init(cassandraPasswordRetriever::retrieve,
+                           ldapUserRetriever::retrieve,
+                           parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP)));
 
         logger.info("{} was initialised", LDAPAuthenticator.class.getName());
     }
@@ -148,15 +136,15 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
         {
             final User user = new User(username, password);
 
-            final String cachedPassword = cacheDelegate.get(user);
+            final User cachedUser = cacheDelegate.get(user);
 
             // authenticate will be called if we're not in cache, subsequently loading the cache for the given user.
-            if (cachedPassword != null)
+            if (cachedUser != null && cachedUser.getPassword() != null)
             {
-                if (!hasher.checkPasswords(password, cachedPassword))
+                if (!hasher.checkPasswords(password, cachedUser.getPassword()))
                 {
 
-                    if (user.getLdapDN() == null)
+                    if (cachedUser.getLdapDN() == null)
                     {
                         throw new AuthenticationException("invalid username/password");
                     }
@@ -170,15 +158,15 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
                     cacheDelegate.get(user);
                 }
 
-                final String loginName = user.getLdapDN() == null ? user.getUsername() : user.getLdapDN();
 
-                if (user.getLdapDN() != null)
+                if (cachedUser.getLdapDN() != null && systemAuthRoles.roleMissing(cachedUser.getLdapDN()))
                 {
-                    systemAuthRoles.createRole(user.getLdapDN(), false);
-                } else if (user.getUsername().startsWith(properties.getProperty(NAMING_ATTRIBUTE_PROP)))
-                {
-                    systemAuthRoles.createRole(user.getUsername(), false);
+                    systemAuthRoles.createRole(cachedUser.getLdapDN(), false);
                 }
+
+                final String loginName = cachedUser.getLdapDN() == null ? cachedUser.getUsername() : cachedUser.getLdapDN();
+
+                logger.debug("Going to log in with {}", loginName);
 
                 return new AuthenticatedUser(loginName);
             }
@@ -199,6 +187,7 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
             }
         } catch (final AuthenticationException ex)
         {
+            logger.info("Could not authenticate!", ex);
             throw ex;
         } catch (final Exception ex)
         {

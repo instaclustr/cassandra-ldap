@@ -75,21 +75,26 @@ The content of the configuration file is as follows:
 |service_password
 |Service user password
 
-|ldap_naming_attribute
-|Use this setting if you need to change your naming attribute from the usual cn=
+|filter_template
+|template for searching in LDAP, explanation further in this readme, defaults to `(cn=%s)`
 
 |auth_cache_enabled
 |relevant for Cassandra 3.11 and 4.0 plugins, defaults to `false`
 
+|consistency_for_role
+|consistency level to use for retrieval of a role to check if it can log in - defaults to LOCAL_ONE
+
 |auth_bcrypt_gensalt_log2_rounds
 |number of rounds to hash passwords
+
+|load_ldap_service
+|defaults to false, if it is true, SPI mechanism will look on class path to load custom implementation of `LDAPUserRetriever`.
 |===
 
 
 ## Configuration of Cassandra
 
 If is *strongly* recommended to use `NetworkTopologyStrategy` for your `system_auth keyspace`.
-
 
 Please be sure that `system_auth` keyspace uses `NetworkTopologyStrategy` with number of replicas equal to number of nodes in DC. If it is not
 the case, you can alter your keyspace as follows:
@@ -145,7 +150,15 @@ For fast testing there is Debian OpenLDAP Docker container
 The `ldap.configuration` file in the `conf` directory does not need to be changed, and with the above `docker run` it will work out of the box. You just
 have to put it in `$CASSANDRA_CONF` or set respective configuration property as described above.
 
-## How It Works
+## Explanation of filter_template property
+
+`filter_template` property is by default `(cn=%s)` where `%s` will be replaced by name you want to log in with.
+For example if you do `cqlsh -u myuserinldap`, a search filter for LDAP will be `(cn=myuserinldap)`. You
+may have a different search filter based on your need, a lot of people use e.g. SAM or something similar.
+If you try to log in with `cqlsh -u cn=myuserinldap`, there will be no replacement done and this will be
+used as a search filter instead.
+
+## How it Works
 
 LDAPAuthenticator currently supports plain text authorization requests only in the form of a username and password.
 This request is made to the LDAP server over plain text, so you should be using client encryption on the Cassandra
@@ -165,14 +178,8 @@ the operator still has a possibility of logging in via `cassandra` user as usual
 Users meant to be authenticated against the LDAP server will not be able to log in but all "normal" users will be able to
 login and the disruption of LDAP communication will not affect their ability to do so as they live in Cassandra natively.
 
-In case there are two logins of same name (e.g. `admin` in LDAP and `admin` in C*),
-in order to distinguish them, if you want to login with LDAP user, you have to
-specify its full account name, e.g.
-
-    cqlsh -u cn=admin,dn=example,dn=org
-
-In case a user specifies just `admin` as login name (or any other name, for that matter), it will try to
-authenticate against database first and if not successful against LDAP, adding all details (cn= etc. ...) to username automatically.
+In case a user specifies just `test` as login name (or any other name, for that matter), it will try to
+authenticate against database first and if not successful against LDAP using filter `filter_template` which defaults to `(cn=%s)`
 
 It is possible to delete administration role (e.g. role `cassandra`) but if one does that, all administration operations are only able to
 be done via LDAP account. In case LDAP is down, the operator would not have any control over DB as `cassandra` is not present anymore.
@@ -184,21 +191,27 @@ If you delete `cassandra` user, there is suddenly not such user. You have to res
 
 Where `dba` is _new_ superuser which is able to write to `system_auth.roles` and acts as Cassandra admin.
 
+Upon login via LDAP user, this plugin will create a dummy role just to be able to play as a normal Cassandra role
+with all its permissions and so on. Passwords for LDAP users are not stored in Cassandra, obviously.
+
+Credentials are cached for implementations for Cassandra 3.11 and 4.0 so that way we are not hitting LDAP server
+all the time when there is a lot of login attempts with same login name. An administrator can increase
+relevant validity settings in `cassandra.yaml` to increase these periods even more.
+
 ## SPI for LDAP server implementations (advanced)
 
 In order to talk to a LDAP server, there is `DefaultLDAPServer` class in `base` module which all modules are using.
 However, it might not be enough - there is a lot of LDAP servers out there and their internals and configuration
 might render the default implementation incompatible. If you have special requirements, you might provide your
-own implementation by extending `DefaultLDAPServer` and overriding what is necessary. You might as well
-extend and implement `LDAPPasswordRetriever` class. `DefaultLDAPServer` just extends it.
+own implementation by implementing `LDAPUserRetriever`. You have to have `load_ldap_service` set to `true` as well.
 
 To tell LDAP plugin to use your implementation, you need to create a file in `src/main/resources/META-INF/services`
-called `com.instaclustr.cassandra.ldap.auth.LDAPPasswordRetriever` and the content of that file needs to
+called `LDAPUserRetriever` and the content of that file needs to
 be just one line - the fully qualified class name (with package) of your custom implementation.
 
 After you build such plugin, the SPI mechanism upon plugin's initialisation during Cassandra node startup
 will pick up your custom LDAP server connection / authentication logic.
 
 ## Further Information
-- See blog by Kurt Greaves https://www.instaclustr.com/apache-cassandra-ldap-authentication/[Apache Cassandra LDAP Authentication]
-- Please see https://www.instaclustr.com/support/documentation/announcements/instaclustr-open-source-project-status/ for Instaclustr support status of this project
+- See blog by Stefan Miklosovic about https://www.instaclustr.com/the-instaclustr-ldap-plugin-for-cassandra/[Apache Cassandra LDAP Authentication]
+- Please see https://www.instaclustr.com/support/documentation/announcements/instaclustr-open-source-project-status/[Instaclustr support status] of this project

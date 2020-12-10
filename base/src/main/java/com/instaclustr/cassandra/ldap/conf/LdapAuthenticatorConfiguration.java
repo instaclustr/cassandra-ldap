@@ -49,8 +49,7 @@ public final class LdapAuthenticatorConfiguration
     public static final String LDAP_DN = "service_dn";
     public static final String PASSWORD_KEY = "service_password";
 
-    // Just to support those not using "cn"
-    public static final String NAMING_ATTRIBUTE_PROP = "ldap_naming_attribute";
+    public static final String FILTER_TEMPLATE = "filter_template";
 
     public static final String CASSANDRA_AUTH_CACHE_ENABLED_PROP = "auth_cache_enabled";
 
@@ -60,6 +59,9 @@ public final class LdapAuthenticatorConfiguration
     public static final String DEFAULT_CONTEXT_FACTORY = "com.sun.jndi.ldap.LdapCtxFactory";
 
     public static final String CASSANDRA_LDAP_ADMIN_USER = "cassandra.ldap.admin.user";
+
+    public static final String CONSISTENCY_FOR_ROLE = "consistency_for_role";
+    public static final String DEFAULT_CONSISTENCY_FOR_ROLE = "LOCAL_ONE";
 
     public Properties parseProperties() throws ConfigurationException
     {
@@ -124,15 +126,23 @@ public final class LdapAuthenticatorConfiguration
             throw new ConfigurationException(format("You must specify both %s and %s.", LDAP_DN, PASSWORD_KEY));
         }
 
-        if (properties.getProperty(NAMING_ATTRIBUTE_PROP) == null)
+        properties.setProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, Boolean.toString(parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, "true"))));
+
+        properties.setProperty(CONSISTENCY_FOR_ROLE, properties.getProperty(CONSISTENCY_FOR_ROLE, DEFAULT_CONSISTENCY_FOR_ROLE));
+
+        String filterTemplate = properties.getProperty(FILTER_TEMPLATE, "(cn=%s)");
+
+        if (!filterTemplate.contains("%s"))
         {
-            properties.setProperty(NAMING_ATTRIBUTE_PROP, "cn");
+            throw new ConfigurationException(String.format("Filter template property %s, has to contain placeholder '\\%s'", filterTemplate));
         }
 
-        properties.put(Context.INITIAL_CONTEXT_FACTORY, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
-        properties.put(Context.PROVIDER_URL, properties.getProperty(LDAP_URI_PROP));
+        properties.setProperty(FILTER_TEMPLATE, filterTemplate);
 
-        properties.setProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, Boolean.toString(parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, "true"))));
+
+
+        properties.put(LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
+        properties.put(LdapAuthenticatorConfiguration.LDAP_URI_PROP, properties.getProperty(LDAP_URI_PROP));
 
         return properties;
     }

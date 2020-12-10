@@ -14,7 +14,7 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.messages.ResultMessage.Rows;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LegacyCassandraRolePasswordRetriever extends AbstractCassandraRolePasswordRetriever
+public class LegacyCassandraUserRetriever extends AbstractCassandraUserRetriever
 {
 
     @Override

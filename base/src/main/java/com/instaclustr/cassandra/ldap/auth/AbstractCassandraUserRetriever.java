@@ -32,10 +32,10 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public abstract class AbstractCassandraRolePasswordRetriever implements CassandraPasswordRetriever
+public abstract class AbstractCassandraUserRetriever implements CassandraUserRetriever
 {
 
-    private static final Logger logger = LoggerFactory.getLogger(AbstractCassandraRolePasswordRetriever.class);
+    private static final Logger logger = LoggerFactory.getLogger(AbstractCassandraUserRetriever.class);
 
     protected static final String LEGACY_CREDENTIALS_TABLE = "credentials";
     protected static final String AUTH_KEYSPACE = "system_auth";
@@ -47,7 +47,7 @@ public abstract class AbstractCassandraRolePasswordRetriever implements Cassandr
     protected boolean legacyTableExists;
 
     @Override
-    public String retrieveHashedPassword(User user)
+    public User retrieve(User user)
     {
         try
         {
@@ -67,7 +67,7 @@ public abstract class AbstractCassandraRolePasswordRetriever implements Cassandr
                 throw new NoSuchCredentialsException();
             }
 
-            return result.one().getString("salted_hash");
+            return new User(user.getUsername(), result.one().getString("salted_hash"));
         } catch (NoSuchRoleException ex)
         {
             logger.trace(format("User %s does not exist in the Cassandra database.", user.getUsername()));

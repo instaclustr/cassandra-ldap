@@ -17,14 +17,16 @@
  */
 package com.instaclustr.cassandra.ldap;
 
+import java.util.StringJoiner;
+
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 public class User
 {
 
-    private final String username;
+    private String username;
 
-    private final String password;
+    private String password;
 
     private String ldapDN = null;
 
@@ -41,6 +43,14 @@ public class User
         }
 
         this.username = username;
+        this.password = password;
+    }
+
+    public void setUsername(final String username) {
+        this.username = username;
+    }
+
+    public void setPassword(final String password) {
         this.password = password;
     }
 
@@ -83,11 +93,36 @@ public class User
 
         final User other = (User) obj;
 
-        return this.getUsername().equals(other.getUsername());
+        if (this.ldapDN != null && other.ldapDN != null)
+        {
+            return this.ldapDN.equals(other.ldapDN);
+        }
+        else if (this.username != null && other.username != null)
+        {
+            return this.username.equals(other.username);
+        }
+
+        return false;
     }
 
     public int hashCode()
     {
-        return new HashCodeBuilder(19, 29).append(getUsername()).toHashCode();
+        if (ldapDN != null)
+        {
+            return new HashCodeBuilder(19, 29).append(ldapDN).toHashCode();
+        }
+
+        assert username != null;
+
+        return new HashCodeBuilder(19, 29).append(username).toHashCode();
+    }
+
+    @Override
+    public String toString() {
+        return new StringJoiner(", ", User.class.getSimpleName() + "[", "]")
+            .add("username='" + username + "'")
+            .add("password=redacted")
+            .add("ldapDN='" + ldapDN + "'")
+            .toString();
     }
 }

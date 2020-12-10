@@ -18,8 +18,6 @@
 package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
-import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.LDAP_DN;
-import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.NAMING_ATTRIBUTE_PROP;
 import static com.instaclustr.cassandra.ldap.utils.ServiceUtils.getService;
 import static java.lang.String.format;
 
@@ -29,11 +27,11 @@ import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.instaclustr.cassandra.ldap.AbstractLDAPAuthenticator;
 import com.instaclustr.cassandra.ldap.User;
-import com.instaclustr.cassandra.ldap.auth.CassandraPasswordRetriever;
-import com.instaclustr.cassandra.ldap.auth.DefaultLDAPServer;
-import com.instaclustr.cassandra.ldap.auth.LDAPPasswordRetriever;
-import com.instaclustr.cassandra.ldap.auth.LegacyCassandraRolePasswordRetriever;
-import com.instaclustr.cassandra.ldap.auth.LegacySystemAuthRoles;
+import com.instaclustr.cassandra.ldap.auth.CassandraUserRetriever;
+import com.instaclustr.cassandra.ldap.auth.DefaultLDAPUserRetriever;
+import com.instaclustr.cassandra.ldap.auth.LegacyCassandraUserRetriever;
+import com.instaclustr.cassandra.ldap.auth.SystemAuthRoles;
+import com.instaclustr.cassandra.ldap.auth.UserRetriever;
 import com.instaclustr.cassandra.ldap.cache.CredentialsLoadingFunction;
 import com.instaclustr.cassandra.ldap.exception.LDAPAuthFailedException;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -61,20 +59,11 @@ public abstract class LegacyCassandraLDAPAuthenticator extends AbstractLDAPAuthe
 
         clientState = ClientState.forInternalCalls();
 
-        systemAuthRoles = new LegacySystemAuthRoles();
+        systemAuthRoles = getService(SystemAuthRoles.class, null);
         systemAuthRoles.setClientState(clientState);
 
-        final CassandraPasswordRetriever cassandraPasswordRetriever = new LegacyCassandraRolePasswordRetriever();
-        cassandraPasswordRetriever.init(clientState);
-
-        final LDAPPasswordRetriever ldapPasswordRetriever = getService(LDAPPasswordRetriever.class, DefaultLDAPServer.class);
-        try
-        {
-            ldapPasswordRetriever.init(clientState, hasher, properties);
-        } catch (ConfigurationException e)
-        {
-            logger.warn(format("Not possible to connect to LDAP server as user %s.", properties.getProperty(LDAP_DN)), e);
-        }
+        final CassandraUserRetriever cassandraUserRetriever = new LegacyCassandraUserRetriever();
+        cassandraUserRetriever.init(clientState);
 
         final String adminRole = System.getProperty(CASSANDRA_LDAP_ADMIN_USER, "cassandra");
 
@@ -97,13 +86,14 @@ public abstract class LegacyCassandraLDAPAuthenticator extends AbstractLDAPAuthe
 
         clientState.login(new AuthenticatedUser(adminRole));
 
-        credentialsLoadingFunction = new CredentialsLoadingFunction(cassandraPasswordRetriever::retrieveHashedPassword,
-                                                                    ldapPasswordRetriever::retrieveHashedPassword,
-                                                                    properties.getProperty(NAMING_ATTRIBUTE_PROP));
+        final UserRetriever ldapUserRetriever = new DefaultLDAPUserRetriever(hasher, properties);
+
+        credentialsLoadingFunction = new CredentialsLoadingFunction(cassandraUserRetriever::retrieve,
+                                                                    ldapUserRetriever::retrieve);
 
         logger.info("{} was initialised", LegacyCassandraLDAPAuthenticator.class.getName());
-    }
 
+    }
 
     @Override
     public AuthenticatedUser authenticate(final String username, final String loginPassword)
@@ -112,11 +102,11 @@ public abstract class LegacyCassandraLDAPAuthenticator extends AbstractLDAPAuthe
         {
             final User user = new User(username, loginPassword);
 
-            final String userPassword = credentialsLoadingFunction.apply(user);
+            final User retrievedUser = credentialsLoadingFunction.apply(user);
 
-            if (userPassword != null)
+            if (retrievedUser != null && retrievedUser.getPassword() != null)
             {
-                if (!hasher.checkPasswords(loginPassword, userPassword))
+                if (!hasher.checkPasswords(loginPassword, retrievedUser.getPassword()))
                 {
 
                     if (user.getLdapDN() == null)
@@ -125,15 +115,14 @@ public abstract class LegacyCassandraLDAPAuthenticator extends AbstractLDAPAuthe
                     }
                 }
 
-                final String loginName = user.getLdapDN() == null ? user.getUsername() : user.getLdapDN();
-
-                if (user.getLdapDN() != null)
+                if (retrievedUser.getLdapDN() != null && systemAuthRoles.roleMissing(retrievedUser.getLdapDN()))
                 {
-                    systemAuthRoles.createRole(user.getLdapDN(), false);
-                } else if (user.getUsername().startsWith(properties.getProperty(NAMING_ATTRIBUTE_PROP)))
-                {
-                    systemAuthRoles.createRole(user.getUsername(), false);
+                    systemAuthRoles.createRole(retrievedUser.getLdapDN(), false);
                 }
+
+                final String loginName = retrievedUser.getLdapDN() == null ? retrievedUser.getUsername() : retrievedUser.getLdapDN();
+
+                logger.debug("Going to log in with {}", loginName);
 
                 return new AuthenticatedUser(loginName);
             }

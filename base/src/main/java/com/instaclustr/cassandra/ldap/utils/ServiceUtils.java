@@ -70,7 +70,7 @@ public class ServiceUtils
                                                     services.stream().map(impl -> impl.getClass().getName()).collect(joining(","))));
         }
 
-        logger.info(format("Using implementation of %s: %s", clazz.getName(), services.get(0).getClass().getName()));
+        logger.debug(format("Using implementation of %s: %s", clazz.getName(), services.get(0).getClass().getName()));
 
         return services.get(0);
     }
