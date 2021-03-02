@@ -68,20 +68,6 @@ public abstract class AbstractLDAPAuthenticator implements IAuthenticator
     @Override
     public AuthenticatedUser legacyAuthenticate(final Map<String, String> credentials) throws AuthenticationException
     {
-        final String username = credentials.get(LDAP_DN);
-
-        if (username == null)
-        {
-            throw new AuthenticationException(format("Required key '%s' is missing", LDAP_DN));
-        }
-
-        final String password = credentials.get(PASSWORD_KEY);
-
-        if (password == null)
-        {
-            throw new AuthenticationException(format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
-        }
-
-        return authenticate(username, password);
+        return authenticate(credentials.get("username"), credentials.get("password"));
     }
 }
