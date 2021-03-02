@@ -17,7 +17,7 @@
     <description>Pluggable LDAP authentication implementation for Apache Cassandra 4.0</description>
     
     <properties>
-        <version.cassandra.all>4.0-beta3</version.cassandra.all>
+        <version.cassandra.all>4.0-beta4</version.cassandra.all>
         
         <version.shrinkwrap.bom>1.2.6</version.shrinkwrap.bom>
         <version.shrinkwrap.resolvers>3.1.3</version.shrinkwrap.resolvers>
