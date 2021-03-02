@@ -19,7 +19,7 @@ public class Cassandra40LDAPIntegrationTest extends AbstractLDAPTesting
 
     public String getCassandraVersion()
     {
-        return System.getProperty("cassandra.version", "4.0-beta3");
+        return System.getProperty("cassandra.version", "4.0-beta4");
     }
 
     @Override
@@ -38,7 +38,7 @@ public class Cassandra40LDAPIntegrationTest extends AbstractLDAPTesting
     {
         File[] singleFile = Maven.resolver()
             .loadPomFromFile("pom.xml")
-            .resolve("com.instaclustr:cassandra-ldap-4.0:1.1.0")
+            .resolve("com.instaclustr:cassandra-ldap-4.0:1.1.1")
             .withTransitivity()
             .asFile();
 
