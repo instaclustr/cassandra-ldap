@@ -19,7 +19,9 @@ package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
+import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.ELIGIBILITY_CHECK_CLASS_NAME;
 import static com.instaclustr.cassandra.ldap.utils.ServiceUtils.getService;
+import static com.instaclustr.cassandra.ldap.utils.ServiceUtils.getServiceFromConfig;
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
 
@@ -29,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.instaclustr.cassandra.ldap.AbstractLDAPAuthenticator;
+import com.instaclustr.cassandra.ldap.auth.LoginEligibilityCheck;
 import com.instaclustr.cassandra.ldap.PlainTextSaslAuthenticator;
 import com.instaclustr.cassandra.ldap.User;
 import com.instaclustr.cassandra.ldap.auth.CassandraUserRetriever;
@@ -64,6 +67,7 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
     private static final Logger logger = LoggerFactory.getLogger(AbstractLDAPAuthenticator.class);
 
     protected CacheDelegate cacheDelegate;
+    protected LoginEligibilityCheck loginEligibilityCheck;
 
     public void setup()
     {
@@ -84,6 +88,9 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
 
 
         cacheDelegate = getService(CacheDelegate.class, null);
+
+        loginEligibilityCheck = getServiceFromConfig(LoginEligibilityCheck.class, properties.getProperty(ELIGIBILITY_CHECK_CLASS_NAME));
+        loginEligibilityCheck.init(clientState, properties);
 
         final String adminRole = System.getProperty(CASSANDRA_LDAP_ADMIN_USER, "cassandra");
 
@@ -166,9 +173,16 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
 
                 final String loginName = cachedUser.getLdapDN() == null ? cachedUser.getUsername() : cachedUser.getLdapDN();
 
-                logger.debug("Going to log in with {}", loginName);
-
-                return new AuthenticatedUser(loginName);
+                if (loginEligibilityCheck.isEligibleToLogin(cachedUser, loginName))
+                {
+                    logger.debug("Going to log in with {}", loginName);
+                    return new AuthenticatedUser(loginName);
+                }
+                else
+                {
+                    throw new AuthenticationException(String.format("User %s is authenticated against LDAP fine but it is not able "
+                                                                        + "to log in based on an eligibility check.", loginName));
+                }
             }
         } catch (final UncheckedExecutionException ex)
         {

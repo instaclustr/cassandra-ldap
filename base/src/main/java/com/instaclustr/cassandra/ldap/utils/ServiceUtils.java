@@ -34,6 +34,20 @@ public class ServiceUtils
 
     private static final Logger logger = LoggerFactory.getLogger(ServiceUtils.class);
 
+    public static <T> T getServiceFromConfig(final Class<T> clazz,
+                                             final String classNameFromConfig)
+    {
+        Class<?> defaultImplClazz;
+
+        try {
+            defaultImplClazz = Class.forName(classNameFromConfig);
+        } catch (final ClassNotFoundException e) {
+            throw new IllegalStateException(format("Could not find class %s", classNameFromConfig));
+        }
+
+        return getService(clazz, (Class<T>) defaultImplClazz);
+    }
+
     public static <T> T getService(final Class<T> clazz, final Class<? extends T> defaultImplClazz)
     {
         final ServiceLoader<T> loader = ServiceLoader.load(clazz);
