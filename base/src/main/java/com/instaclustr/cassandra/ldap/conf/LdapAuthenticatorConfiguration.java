@@ -26,6 +26,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
 
+import com.instaclustr.cassandra.ldap.auth.NoOpLoginEligibilityCheck;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +60,19 @@ public final class LdapAuthenticatorConfiguration
     public static final String DEFAULT_CONTEXT_FACTORY = "com.sun.jndi.ldap.LdapCtxFactory";
 
     public static final String CASSANDRA_LDAP_ADMIN_USER = "cassandra.ldap.admin.user";
+
+    public static final String ELIGIBILITY_CHECK_CLASS_NAME = "eligibility_class_name";
+    public static final String DEFAULT_ELIGIBILITY_CHECK_CLASS_NAME = NoOpLoginEligibilityCheck.class.getCanonicalName();
+
+    public static final String CASSANDRA_ELIGIBILITY_CHECK_KEYSPACE = "eligibility_cassandra_keyspace";
+    public static final String CASSANDRA_ELIGIBILITY_CHECK_TABLE = "eligibility_cassandra_table";
+    public static final String CASSANDRA_ELIGIBILITY_CHECK_USER_COLUMN = "eligibility_cassandra_user_column";
+    public static final String CASSANDRA_ELIGIBILITY_CHECK_ACCESS_COLUMN = "eligibility_cassandra_access_column";
+
+    public static final String DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_KEYSPACE = "login_eligibility";
+    public static final String DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_TABLE = "login_eligibility";
+    public static final String DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_USER_COLUMN = "user";
+    public static final String DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_ACCESS_COLUMN = "has_access";
 
     public static final String CONSISTENCY_FOR_ROLE = "consistency_for_role";
     public static final String DEFAULT_CONSISTENCY_FOR_ROLE = "LOCAL_ONE";
@@ -139,10 +153,22 @@ public final class LdapAuthenticatorConfiguration
 
         properties.setProperty(FILTER_TEMPLATE, filterTemplate);
 
+        properties.setProperty(LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
+        properties.setProperty(LdapAuthenticatorConfiguration.LDAP_URI_PROP, properties.getProperty(LDAP_URI_PROP));
 
+        properties.setProperty(LdapAuthenticatorConfiguration.ELIGIBILITY_CHECK_CLASS_NAME, properties.getProperty(ELIGIBILITY_CHECK_CLASS_NAME, DEFAULT_ELIGIBILITY_CHECK_CLASS_NAME));
 
-        properties.put(LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
-        properties.put(LdapAuthenticatorConfiguration.LDAP_URI_PROP, properties.getProperty(LDAP_URI_PROP));
+        properties.setProperty(LdapAuthenticatorConfiguration.CASSANDRA_ELIGIBILITY_CHECK_KEYSPACE,
+                               properties.getProperty(CASSANDRA_ELIGIBILITY_CHECK_KEYSPACE, DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_KEYSPACE));
+
+        properties.setProperty(LdapAuthenticatorConfiguration.CASSANDRA_ELIGIBILITY_CHECK_TABLE,
+                               properties.getProperty(CASSANDRA_ELIGIBILITY_CHECK_TABLE, DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_TABLE));
+
+        properties.setProperty(LdapAuthenticatorConfiguration.CASSANDRA_ELIGIBILITY_CHECK_USER_COLUMN,
+                               properties.getProperty(CASSANDRA_ELIGIBILITY_CHECK_USER_COLUMN, DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_USER_COLUMN));
+
+        properties.setProperty(LdapAuthenticatorConfiguration.CASSANDRA_ELIGIBILITY_CHECK_ACCESS_COLUMN,
+                               properties.getProperty(CASSANDRA_ELIGIBILITY_CHECK_ACCESS_COLUMN, DEFAULT_CASSANDRA_ELIGIBILITY_CHECK_ACCESS_COLUMN));
 
         return properties;
     }

@@ -24,8 +24,8 @@ There are four implementation modules:
 
 * cassandra-2.2 - builds against version 2.2.19
 * cassandra-3.0 - builds against version 3.0.23
-* cassandra-3.11 - builds against version 3.11.9
-* cassandra-4.0 - builds against version 4.0-beta3
+* cassandra-3.11 - builds against version 3.11.10
+* cassandra-4.0 - builds against version 4.0-beta4
 
 Project is built as:
 
@@ -89,6 +89,21 @@ The content of the configuration file is as follows:
 
 |load_ldap_service
 |defaults to false, if it is true, SPI mechanism will look on class path to load custom implementation of `LDAPUserRetriever`.
+
+|eligibility_class_name
+|defaults to `NoOpLoginEligibilityCheck`
+
+|eligibility_cassandra_keyspace
+|defaults to `login_eligibility`
+
+|eligibility_cassandra_table
+|defaults to `login_eligibility`
+
+|eligibility_cassandra_user_column
+|defaults to `user`
+
+|eligibility_cassandra_access_column
+|defaults to `has_access`
 |===
 
 
@@ -157,6 +172,70 @@ For example if you do `cqlsh -u myuserinldap`, a search filter for LDAP will be 
 may have a different search filter based on your need, a lot of people use e.g. SAM or something similar.
 If you try to log in with `cqlsh -u cn=myuserinldap`, there will be no replacement done and this will be
 used as a search filter instead.
+
+## Login eligibility checks
+
+There is an additional mechanims implemented for login eligibility resoultion after user is authenticated
+in LDAP. If user is authenticated against LDAP and he is not able to log in (e.g. submitted password is wrong),
+this check is bypassed. However, even if a user in LDAP is able to log in, Cassandra database administrators
+can use additional checks to decide if a user who passed LDAP authentication procedure is indeed able to log in or not.
+
+The login eligibility check implementation is driven by the configuration property `eligibility_class_name` which
+defaults to the no-op implementation which means that login to LDAP will make such user eligible to log in to Cassandra
+without any further restrictions / checks.
+
+There is a default Cassandra implementation provided which might be used by setting `eligibility_class_name` to
+`com.instaclustr.cassandra.ldap.auth.Cassandra311LoginEligibilityCheck` for C* 3.11. If you are running Cassandra 4.0, please
+set this property to `com.instaclustr.cassandra.ldap.auth.Cassandra40LoginEligibilityCheck`.
+IF you use 3.0 or 2.2, use `CassandraLoginEligibilityCheck`.
+
+Before using this feature (when you are using Cassandra check), respective keyspace
+and table need to be created which will capture eligibility data. The default script
+is located in `conf/eligibility_check.cql`. Please keep in mind that you might
+alter this keyspace to e.g. reflect your replication strategy requirements - this duty is
+left to Cassandra operator.
+
+Operator is responsible for the population of this table, plugin just reads from this table
+and it expects that such record is found. For example, let's say that operator inserted this record:
+
+----
+cqlsh> INSERT INTO login_eligibility.login_eligibility (user , has_access ) VALUES ( 'cn=stefan,dc=example,dc=org', true) USING TTL 60;
+cqlsh> select user, has_access, ttl(has_access) from login_eligibility.login_eligibility where user = 'stefan';
+
+ user                        | has_access | ttl(has_access)
+-----------------------------+------------+-----------------
+ cn=stefan,dc=example,dc=org |       True |              55
+
+(1 rows)
+----
+
+The default Cassandra check implementation will do this check upon login:
+
+----
+clqsh> select user, has_access from login_eligibility.login_eligibility where user = 'cn=stefan,dc=example,dc=org';
+----
+
+Then the plugin looks into `has_access` and it has to be `true`.
+
+TTL is optional, here it is used with advantage that a user is eligible to be logged in
+just for 1 minute. There might be e.g. some company policy to enable a user to log in
+during 2 days, for example, which would mimic this policy. After 2 days, such record
+is not present in database anymore which renders a user to be unable to log in.
+
+If you want to use custom eligibility check implementation, you need to firstly implement the interface
+`com.instaclustr.cassandra.ldap.auth.LoginEligibilityCheck`, then you need to
+create a JAR with this class and put it on Cassandra's class path. In your JAR,
+you need to specify your implemenatation in `src/main/resources/META-INF/services` where you need
+to put a file with name of FQCN of interface and its content will be FQCN of your implementation which
+implements this interface.
+
+If you do not want to use SPI mechanism mentioned above, you still have to put your
+implementation on the class path but you have to specify your implementation
+in `eligibility_class_name` configuration property.
+
+If you want to use different configuration properties for your custom implementation, you have them
+available in interfaces' method `init` where they are passed from plugin internals upon
+its setup.
 
 ## How it Works
 
