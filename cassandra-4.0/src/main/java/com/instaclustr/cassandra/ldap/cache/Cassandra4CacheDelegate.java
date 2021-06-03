@@ -38,12 +38,12 @@ public class Cassandra4CacheDelegate implements CacheDelegate
 
                 if (cassandraUser != null)
                 {
-                    logger.debug("Fetching user from Cassandra: " + user.toString());
+                    logger.info("Fetching user from Cassandra: " + user.toString());
                     return cassandraUser;
                 }
             } catch (final Exception ex)
             {
-                logger.trace("{} not found in Cassandra", user);
+                logger.info("{} not found in Cassandra", user);
             }
 
             User ldapUser = this.ldapCache.get(user);

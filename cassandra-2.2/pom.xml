@@ -10,8 +10,8 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
     
-    <artifactId>cassandra-ldap-2.2</artifactId>
-    <version>1.1.1</version>
+    <artifactId>cassandra-ldap-2.2.19</artifactId>
+    <version>1.0.0</version>
     
     <name>Cassandra LDAP Authenticator for Cassandra 2.2</name>
     <description>Pluggable LDAP authentication implementation for Apache Cassandra 2.2</description>
