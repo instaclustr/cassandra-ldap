@@ -94,6 +94,10 @@ public class LDAPCassandraRoleManager extends CassandraRoleManager
 
                 if (!canLogin(RoleResource.fromName("roles/" + dbaRole)))
                 {
+                    if (dbaRole.equals("cassandra"))
+                    {
+                        throw new IllegalStateException();
+                    }
                     logger.info("Role '" + dbaRole + "' can not log in, prematurely existing setup, not going to create LDAP admin role {}", ldapAdminRole);
                     return null;
                 }

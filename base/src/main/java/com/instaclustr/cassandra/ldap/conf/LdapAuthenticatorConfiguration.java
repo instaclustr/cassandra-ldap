@@ -139,8 +139,6 @@ public final class LdapAuthenticatorConfiguration
 
         properties.setProperty(FILTER_TEMPLATE, filterTemplate);
 
-
-
         properties.put(LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
         properties.put(LdapAuthenticatorConfiguration.LDAP_URI_PROP, properties.getProperty(LDAP_URI_PROP));
 

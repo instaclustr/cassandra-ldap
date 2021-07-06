@@ -1,32 +1,34 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-    
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
-    
+
     <parent>
         <groupId>com.instaclustr</groupId>
         <artifactId>cassandra-ldap-parent</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.1</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>cassandra-ldap-3.0.23</artifactId>
-    <version>1.0.0</version>
-    
+    <version>1.0.1</version>
+
     <name>Cassandra LDAP Authenticator for Cassandra 3.0</name>
     <description>Pluggable LDAP authentication implementation for Apache Cassandra 3.0</description>
-    
+
     <properties>
-        <version.cassandra.all>3.0.23</version.cassandra.all>
-        
+        <version.cassandra30>3.0.23</version.cassandra30>
+
         <version.shrinkwrap.bom>1.2.6</version.shrinkwrap.bom>
         <version.shrinkwrap.resolvers>3.1.3</version.shrinkwrap.resolvers>
-        <embedded.cassandra.version>3.0.2</embedded.cassandra.version>
-        <cassandra.driver.version>3.10.0</cassandra.driver.version>
-        <testng.version>6.14.3</testng.version>
+
+        <version.embedded.cassandra>4.0.1</version.embedded.cassandra>
+        <version.cassandra.driver>3.0.1</version.cassandra.driver>
+        <version.testng>6.14.3</version.testng>
         <version.awaitility>4.0.3</version.awaitility>
+        <version.testcontainers>1.15.3</version.testcontainers>
     </properties>
-    
+
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -38,15 +40,15 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-    
+
     <dependencies>
         <dependency>
             <groupId>org.apache.cassandra</groupId>
             <artifactId>cassandra-all</artifactId>
-            <version>${version.cassandra.all}</version>
+            <version>${version.cassandra30}</version>
             <scope>provided</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>com.instaclustr</groupId>
             <artifactId>cassandra-ldap-base</artifactId>
@@ -58,16 +60,16 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        
+
         <!-- test -->
-        
+
         <dependency>
             <groupId>org.jboss.shrinkwrap</groupId>
             <artifactId>shrinkwrap-depchain</artifactId>
             <type>pom</type>
             <scope>test</scope>
         </dependency>
-        
+
         <dependency>
             <groupId>org.jboss.shrinkwrap.resolver</groupId>
             <artifactId>shrinkwrap-resolver-depchain</artifactId>
@@ -75,26 +77,11 @@
             <scope>test</scope>
             <type>pom</type>
         </dependency>
-        
-        <dependency>
-            <groupId>com.instaclustr</groupId>
-            <artifactId>cassandra-ldap-base</artifactId>
-            <classifier>tests</classifier>
-            <type>test-jar</type>
-            <version>1.1.1</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.apache.cassandra</groupId>
-                    <artifactId>cassandra-all</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        
+
         <dependency>
             <groupId>com.github.nosan</groupId>
             <artifactId>embedded-cassandra</artifactId>
-            <version>${embedded.cassandra.version}</version>
+            <version>${version.embedded.cassandra}</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>
@@ -103,30 +90,54 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        
+
         <dependency>
             <groupId>com.datastax.cassandra</groupId>
             <artifactId>cassandra-driver-core</artifactId>
-            <version>${cassandra.driver.version}</version>
+            <version>${version.cassandra.driver}</version>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.guava</groupId>
+                    <artifactId>guava</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-handler</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-buffer</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-codec</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
-        
+
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>${testng.version}</version>
+            <version>${version.testng}</version>
             <scope>test</scope>
         </dependency>
-        
-        
+
         <dependency>
             <groupId>org.awaitility</groupId>
             <artifactId>awaitility</artifactId>
             <version>${version.awaitility}</version>
             <scope>test</scope>
         </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${version.testcontainers}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
-    
+
     <build>
         <plugins>
             <plugin>
@@ -134,21 +145,18 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>${maven.shade.plugin.version}</version>
                 <configuration>
-                    <finalName>cassandra-ldap-${version.cassandra.all}-${project.version}</finalName>
+                    <finalName>cassandra-ldap-${version.cassandra30}-${project.version}</finalName>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>io.fabric8</groupId>
-                <artifactId>docker-maven-plugin</artifactId>
-                <version>${maven.docker.plugin}</version>
             </plugin>
             <plugin>
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
+                <version>${version.jdeb}</version>
             </plugin>
             <plugin>
                 <groupId>de.dentrassi.maven</groupId>
                 <artifactId>rpm</artifactId>
+                <version>${version.rpm}</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
