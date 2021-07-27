@@ -10,14 +10,14 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>cassandra-ldap-4.0-rc2</artifactId>
-    <version>1.0.1</version>
+    <artifactId>cassandra-ldap-4.0.0</artifactId>
+    <version>1.0.0</version>
 
     <name>Cassandra LDAP Authenticator for Cassandra 4.0</name>
     <description>Pluggable LDAP authentication implementation for Apache Cassandra 4.0</description>
 
     <properties>
-        <version.cassandra4>4.0-rc2</version.cassandra4>
+        <version.cassandra4>4.0.0</version.cassandra4>
 
         <version.shrinkwrap.bom>1.2.6</version.shrinkwrap.bom>
         <version.shrinkwrap.resolvers>3.1.3</version.shrinkwrap.resolvers>
