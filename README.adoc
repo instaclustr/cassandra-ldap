@@ -23,9 +23,9 @@ these classes will be present when such plugin as a whole is put on a class path
 There are four implementation modules:
 
 * cassandra-2.2 - builds against version 2.2.19
-* cassandra-3.0 - builds against version 3.0.23
-* cassandra-3.11 - builds against version 3.11.9
-* cassandra-4.0 - builds against version 4.0-beta3
+* cassandra-3.0 - builds against version 3.0.25
+* cassandra-3.11 - builds against version 3.11.11
+* cassandra-4.0 - builds against version 4.0.0
 
 Project is built as:
 
