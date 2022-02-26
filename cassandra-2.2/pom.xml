@@ -17,7 +17,7 @@
     <description>Pluggable LDAP authentication implementation for Apache Cassandra 2.2</description>
 
     <properties>
-        <version.cassandra22>2.2.19</version.cassandra22>
+        <version.cassandra22>4.0.2</version.cassandra22>
 
         <version.shrinkwrap.bom>1.2.6</version.shrinkwrap.bom>
         <version.shrinkwrap.resolvers>3.1.3</version.shrinkwrap.resolvers>
