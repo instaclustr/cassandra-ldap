@@ -27,13 +27,13 @@ public class HasherImpl implements Hasher
     private static final Logger logger = LoggerFactory.getLogger(HasherImpl.class);
 
     @Override
-    public synchronized String hashPassword(String password, int rounds)
+    public String hashPassword(String password, int rounds)
     {
         return BCrypt.hashpw(password, BCrypt.gensalt(rounds));
     }
 
     @Override
-    public synchronized boolean checkPasswords(String plaintext, String hashed)
+    public boolean checkPasswords(String plaintext, String hashed)
     {
         try
         {
