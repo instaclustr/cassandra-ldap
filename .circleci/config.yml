@@ -2,12 +2,13 @@ version: 2.1
 jobs:
   build:
     machine:
-      image: ubuntu-1604:202007-01
+      image: ubuntu-2004:202201-02
 
     working_directory: ~/cassandra-ldap
 
     environment:
       MAVEN_OPTS: -Xmx3200m
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 
     steps:
 
@@ -22,7 +23,8 @@ jobs:
             - ~/.m2
           key: m2-{{ checksum "pom.xml" }}
 
-      - run: mvn clean install
+      - run: sudo apt install openjdk-8-jdk
+      - run: mvn --version && whereis java && mvn clean install
 
       - persist_to_workspace:
           root: ~/cassandra-ldap
@@ -34,12 +36,13 @@ jobs:
 
   build-2-2:
     machine:
-      image: ubuntu-1604:202007-01
+      image: ubuntu-2004:202201-02
 
     working_directory: ~/cassandra-ldap
 
     environment:
       MAVEN_OPTS: -Xmx3200m
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 
     steps:
 
@@ -50,7 +53,9 @@ jobs:
             - m2-{{ checksum "pom.xml" }}
             - m2-
 
-      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
+      # Java 8 for Cassandra as image contains Java 11
+      - run: sudo apt install openjdk-8-jdk
+      - run: mvn clean install -DoutputDirectory=/tmp/artifacts -DskipTests
 
       - save_cache:
           paths:
@@ -66,12 +71,13 @@ jobs:
 
   build-3-0:
     machine:
-      image: ubuntu-1604:202007-01
+      image: ubuntu-2004:202201-02
 
     working_directory: ~/cassandra-ldap
 
     environment:
       MAVEN_OPTS: -Xmx3200m
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 
     steps:
 
@@ -82,6 +88,8 @@ jobs:
             - m2-{{ checksum "pom.xml" }}
             - m2-
 
+      # Java 8 for Cassandra as image contains Java 11
+      - run: sudo apt install openjdk-8-jdk
       - run: mvn clean install -DoutputDirectory=/tmp/artifacts
 
       - save_cache:
@@ -98,12 +106,13 @@ jobs:
 
   build-3-11:
     machine:
-      image: ubuntu-1604:202007-01
+      image: ubuntu-2004:202201-02
 
     working_directory: ~/cassandra-ldap
 
     environment:
       MAVEN_OPTS: -Xmx3200m
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 
     steps:
 
@@ -114,6 +123,8 @@ jobs:
             - m2-{{ checksum "pom.xml" }}
             - m2-
 
+      # Java 8 for Cassandra as image contains Java 11
+      - run: sudo apt install openjdk-8-jdk
       - run: mvn clean install -DoutputDirectory=/tmp/artifacts
 
       - save_cache:
@@ -130,12 +141,13 @@ jobs:
 
   build-4-0:
     machine:
-      image: ubuntu-1604:202007-01
+      image: ubuntu-2004:202201-02
 
     working_directory: ~/cassandra-ldap
 
     environment:
       MAVEN_OPTS: -Xmx3200m
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 
     steps:
 
@@ -146,6 +158,8 @@ jobs:
             - m2-{{ checksum "pom.xml" }}
             - m2-
 
+      # Java 8 for Cassandra as image contains Java 11
+      - run: sudo apt install openjdk-8-jdk
       - run: mvn clean install -DoutputDirectory=/tmp/artifacts
 
       - save_cache:
@@ -162,7 +176,7 @@ jobs:
 
   publish-github-release-2-2:
     docker:
-      - image: circleci/golang
+      - image: cimg/go:1.17
     steps:
       - attach_workspace:
           at: ./artifacts
@@ -176,7 +190,7 @@ jobs:
 
   publish-github-release-3-0:
     docker:
-      - image: circleci/golang
+      - image: cimg/go:1.17
     steps:
       - attach_workspace:
           at: ./artifacts
@@ -189,7 +203,7 @@ jobs:
 
   publish-github-release-3-11:
     docker:
-      - image: circleci/golang
+      - image: cimg/go:1.17
     steps:
       - attach_workspace:
           at: ./artifacts
@@ -202,7 +216,7 @@ jobs:
 
   publish-github-release-4-0:
     docker:
-      - image: circleci/golang
+      - image: cimg/go:1.17
     steps:
       - attach_workspace:
           at: ./artifacts
