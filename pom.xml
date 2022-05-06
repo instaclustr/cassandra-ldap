@@ -14,6 +14,7 @@
         <module>cassandra-3.0</module>
         <module>cassandra-3.11</module>
         <module>cassandra-4.0</module>
+        <module>cassandra-4.1</module>
     </modules>
 
     <name>Cassandra LDAP Authenticator parent</name>

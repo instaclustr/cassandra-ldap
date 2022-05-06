@@ -1,0 +1,17 @@
+<configuration>
+  
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger - %msg%n</pattern>
+    </encoder>
+  </appender>
+  
+  <logger name="com.datastax" level="WARN"/>
+  <logger name="io.netty" level="INFO"/>
+  
+  <!-- end -->
+  
+  <root level="DEBUG">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>
