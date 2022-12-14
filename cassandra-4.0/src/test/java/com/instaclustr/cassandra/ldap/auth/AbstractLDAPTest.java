@@ -76,8 +76,6 @@ public abstract class AbstractLDAPTest {
             logger.info("[first node]: login bill");
             context.execute(context.firstNode, "bill", "test", "select * from system.local", "datacenter1", true);
 
-            logger.info("[second node]: login cassandra");
-            context.execute(context.secondNode, "cassandra", "cassandra", "select * from system_auth.roles", "datacenter2", true);
             logger.info("[second node]: login bill");
             context.execute(context.secondNode, "bill", "test", "select * from system.local", "datacenter2", true);
         } catch (final Exception ex) {

@@ -6,12 +6,12 @@
     <parent>
         <groupId>com.instaclustr</groupId>
         <artifactId>cassandra-ldap-parent</artifactId>
-        <version>1.1.1</version>
+        <version>1.1.2</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>cassandra-ldap-2.2.19</artifactId>
-    <version>1.0.1</version>
+    <version>1.0.2</version>
 
     <name>Cassandra LDAP Authenticator for Cassandra 2.2</name>
     <description>Pluggable LDAP authentication implementation for Apache Cassandra 2.2</description>
@@ -52,7 +52,7 @@
         <dependency>
             <groupId>com.instaclustr</groupId>
             <artifactId>cassandra-ldap-base</artifactId>
-            <version>1.1.1</version>
+            <version>1.1.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.apache.cassandra</groupId>

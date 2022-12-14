@@ -24,12 +24,12 @@ jobs:
           key: m2-{{ checksum "pom.xml" }}
 
       - run: sudo apt install openjdk-8-jdk
-      - run: mvn --version && whereis java && mvn clean install
+      - run: mvn --version && whereis java && mvn clean install -Dversion.cassandra22=2.2.19 -Dversion.cassandra30=3.0.28 -Dversion.cassandra311=3.11.14 -Dversion.cassandra4=4.0.7 -Dversion.cassandra41=4.1.0
 
       - persist_to_workspace:
           root: ~/cassandra-ldap
           paths:
-            - "cassandra-2.2/target/cassandra-ldap-2.2.18*.jar"
+            - "cassandra-2.2/target/cassandra-ldap-2.2**.jar"
             - "cassandra-3.0/target/cassandra-ldap-3.0*.jar"
             - "cassandra-3.11/target/cassandra-ldap-3.11*.jar"
             - "cassandra-4.0/target/cassandra-ldap-4.0*.jar"
