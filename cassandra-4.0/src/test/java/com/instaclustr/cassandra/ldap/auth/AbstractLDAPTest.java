@@ -204,13 +204,12 @@ public abstract class AbstractLDAPTest {
             }
         }
 
-        public synchronized ResultSet simpleExecute(
-            Cassandra node,
-            String username,
-            String password,
-            String query,
-            String dc
-        ) {
+        public synchronized ResultSet simpleExecute(Cassandra node,
+                                                    String username,
+                                                    String password,
+                                                    String query,
+                                                    String dc)
+        {
             try (final Session session = Cluster.builder()
                     .addContactPoint(node.getSettings().getAddress().getHostAddress())
                     .withLoadBalancingPolicy(new DCAwareRoundRobinPolicy.Builder().withLocalDc(dc).build())
