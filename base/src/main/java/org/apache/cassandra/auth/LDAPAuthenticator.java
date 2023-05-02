@@ -19,12 +19,14 @@ package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
+import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.DEFAULT_ROLE_MEMBERSHIP;
 import static com.instaclustr.cassandra.ldap.utils.ServiceUtils.getService;
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.String.format;
 
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -157,11 +159,10 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
                     cacheDelegate.invalidate(user);
                     cacheDelegate.get(user);
                 }
-
-
+                
                 if (cachedUser.getLdapDN() != null && systemAuthRoles.roleMissing(cachedUser.getLdapDN()))
                 {
-                    systemAuthRoles.createRole(cachedUser.getLdapDN(), false);
+                    systemAuthRoles.createRole(cachedUser.getLdapDN(), false, Optional.ofNullable(properties.getProperty(DEFAULT_ROLE_MEMBERSHIP, null)));
                 }
 
                 final String loginName = cachedUser.getLdapDN() == null ? cachedUser.getUsername() : cachedUser.getLdapDN();

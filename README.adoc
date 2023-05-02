@@ -20,12 +20,13 @@ depend. It contains core implementation which is necessary as all concrete modul
 The `base` module depends on Cassandra dependency—version 3.0.18 but its scope is `provided` as
 these classes will be present when such plugin as a whole is put on a class path of Cassandra in runtime.
 
-There are four implementation modules:
+There are five implementation modules:
 
 * cassandra-2.2 - builds against version 2.2.19
-* cassandra-3.0 - builds against version 3.0.25
-* cassandra-3.11 - builds against version 3.11.11
-* cassandra-4.0 - builds against version 4.0.0
+* cassandra-3.0 - builds against version 3.0.28
+* cassandra-3.11 - builds against version 3.11.14
+* cassandra-4.0 - builds against version 4.0.7
+* cassandra-4.1 - builds aganst version 4.1.0
 
 Project is built as:
 
@@ -89,6 +90,9 @@ The content of the configuration file is as follows:
 
 |load_ldap_service
 |defaults to false, if it is true, SPI mechanism will look on class path to load custom implementation of `LDAPUserRetriever`.
+
+|default_role_membership
+|A role to add new LDAP users to by default. Defaults to empty (users will not be added to any role).
 |===
 
 
@@ -122,15 +126,7 @@ role_manager: LDAPCassandraRoleManager
 authorizer: CassandraAuthorizer
 ```
 
-### Cassandra 3.11
-
-```
-authenticator: LDAPAuthenticator
-authorizer: CassandraAuthorizer
-role_manager: LDAPCassandraRoleManager
-```
-
-### Cassandra 4.0
+### Cassandra 3.11 - 4.x
 
 ```
 authenticator: LDAPAuthenticator
@@ -211,6 +207,14 @@ be just one line - the fully qualified class name (with package) of your custom 
 
 After you build such plugin, the SPI mechanism upon plugin's initialisation during Cassandra node startup
 will pick up your custom LDAP server connection / authentication logic.
+
+## Default Role Membership
+
+It is possible to automatically add new LDAP users to an existing Cassandra role when they are created by setting the
+`default_role_membership` configuration option. When this is set, any LDAP users logging in to Cassandra for the first
+time will be added to the role specified. Users who already exist in Cassandra will not be added to the group. If the
+default role specified does not exist, the role will not be created and new users will not receive the default membership.
+Only one role can be specified.
 
 ## Further Information
 - See blog by Stefan Miklosovic about https://www.instaclustr.com/the-instaclustr-ldap-plugin-for-cassandra/[Apache Cassandra LDAP Authentication]
