@@ -95,7 +95,8 @@ public abstract class AbstractLDAPTest {
         }
     }
 
-    protected void testDefaultRoleMembership(GenericContainer ldapContainer, CassandraClusterContext context) throws Exception {
+    protected void testDefaultRoleMembership(GenericContainer ldapContainer, CassandraClusterContext context) throws Exception
+    {
         // Create the default role
         context.simpleExecute(
             context.firstNode,

@@ -26,7 +26,6 @@ import static java.lang.String.format;
 
 import java.net.InetAddress;
 import java.util.concurrent.TimeUnit;
-import java.util.Optional;
 
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -162,7 +161,7 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
                 
                 if (cachedUser.getLdapDN() != null && systemAuthRoles.roleMissing(cachedUser.getLdapDN()))
                 {
-                    systemAuthRoles.createRole(cachedUser.getLdapDN(), false, Optional.ofNullable(properties.getProperty(DEFAULT_ROLE_MEMBERSHIP, null)));
+                    systemAuthRoles.createRole(cachedUser.getLdapDN(), false, properties.getProperty(DEFAULT_ROLE_MEMBERSHIP, null));
                 }
 
                 final String loginName = cachedUser.getLdapDN() == null ? cachedUser.getUsername() : cachedUser.getLdapDN();

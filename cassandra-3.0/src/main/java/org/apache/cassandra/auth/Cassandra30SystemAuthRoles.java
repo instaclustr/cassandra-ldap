@@ -5,7 +5,6 @@ import static java.util.Collections.singletonList;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_ONE;
 
 import java.util.Collections;
-import java.util.Optional;
 import java.util.function.Function;
 
 import com.instaclustr.cassandra.ldap.auth.SystemAuthRoles;
@@ -64,7 +63,7 @@ public class Cassandra30SystemAuthRoles implements SystemAuthRoles {
         return rows.result.isEmpty();
     }
 
-    public void createRole(String roleName, boolean superUser, Optional<String> defaultRoleMembership)
+    public void createRole(String roleName, boolean superUser, String defaultRoleMembership)
     {
         final CreateRoleStatement createStmt = (CreateRoleStatement) QueryProcessor.getStatement(format(CREATE_ROLE_STATEMENT_WITH_LOGIN, roleName, superUser),
                                                                                                  getClientState()).statement;
@@ -72,13 +71,17 @@ public class Cassandra30SystemAuthRoles implements SystemAuthRoles {
         createStmt.execute(new QueryState(getClientState()),
                            QueryOptions.forInternalCalls(LOCAL_ONE, singletonList(ByteBufferUtil.bytes(roleName))));
 
-        if (defaultRoleMembership.isPresent()) {
-            if (roleMissing(defaultRoleMembership.get())) {
-                logger.warn("Unable to add user to default role {} because it doesn't exist.", defaultRoleMembership.get());
-            } else {
-                logger.debug("Adding user {} to default role {}", roleName, defaultRoleMembership.get());
+        if (defaultRoleMembership != null)
+        {
+            if (roleMissing(defaultRoleMembership))
+            {
+                logger.warn("Unable to add user to default role {} because it doesn't exist.", defaultRoleMembership);
+            }
+            else
+            {
+                logger.debug("Adding user {} to default role {}", roleName, defaultRoleMembership);
                 final GrantRoleStatement grantRoleStmt = (GrantRoleStatement) QueryProcessor.getStatement(format(GRANT_ROLE_STATEMENT,
-                                                                                                                 defaultRoleMembership.get(),
+                                                                                                                 defaultRoleMembership,
                                                                                                                  roleName),
                                                                                                           getClientState()).statement;
 

@@ -23,7 +23,6 @@ import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.LDAP_DN;
 import static java.lang.String.format;
 
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -119,7 +118,7 @@ public class LDAPCassandraRoleManager extends CassandraRoleManager
                 {
                     if (systemAuthRoles.roleMissing(ldapAdminRole))
                     {
-                        systemAuthRoles.createRole(ldapAdminRole, true, Optional.empty());
+                        systemAuthRoles.createRole(ldapAdminRole, true, null);
                         logger.info("Created LDAP admin role '{}'", ldapAdminRole);
                     } else
                     {
