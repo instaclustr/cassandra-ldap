@@ -75,8 +75,8 @@ public abstract class AbstractLDAPTest {
             context.start();
 
             context.execute(context.firstNode,
-            cassandraAdminUser,
-            cassandraAdminPassword,
+                    cassandraAdminUser,
+                    cassandraAdminPassword,
                     "ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2':1};", cassandraDataCenter1, false);
 
             Thread.sleep(5000);

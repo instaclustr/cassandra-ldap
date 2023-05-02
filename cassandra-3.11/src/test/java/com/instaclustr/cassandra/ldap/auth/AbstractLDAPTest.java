@@ -269,7 +269,6 @@ public abstract class AbstractLDAPTest {
                         add(addResource(new ClassPathResource(node + ".yaml"), "conf/cassandra.yaml"));
                     }
                     add(addResource(new ClassPathResource(node + "-rackdc.properties"), "conf/cassandra-rackdc.properties"));
-                    add(addResource(new ClassPathResource("logback.xml"), "conf/logback.xml"));
                     for (Path pluginJar : pluginJars) {
                         add(addResource(new FileSystemResource(pluginJar), "lib/" + pluginJar.getFileName().toString()));
                     }
