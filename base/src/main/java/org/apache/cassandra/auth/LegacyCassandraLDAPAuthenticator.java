@@ -18,6 +18,7 @@
 package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
+import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.DEFAULT_ROLE_MEMBERSHIP;
 import static com.instaclustr.cassandra.ldap.utils.ServiceUtils.getService;
 import static java.lang.String.format;
 
@@ -117,7 +118,7 @@ public abstract class LegacyCassandraLDAPAuthenticator extends AbstractLDAPAuthe
 
                 if (retrievedUser.getLdapDN() != null && systemAuthRoles.roleMissing(retrievedUser.getLdapDN()))
                 {
-                    systemAuthRoles.createRole(retrievedUser.getLdapDN(), false);
+                    systemAuthRoles.createRole(retrievedUser.getLdapDN(), false, properties.getProperty(DEFAULT_ROLE_MEMBERSHIP, null));
                 }
 
                 final String loginName = retrievedUser.getLdapDN() == null ? retrievedUser.getUsername() : retrievedUser.getLdapDN();

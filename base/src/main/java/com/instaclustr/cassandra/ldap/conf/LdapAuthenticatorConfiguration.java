@@ -63,6 +63,8 @@ public final class LdapAuthenticatorConfiguration
     public static final String CONSISTENCY_FOR_ROLE = "consistency_for_role";
     public static final String DEFAULT_CONSISTENCY_FOR_ROLE = "LOCAL_ONE";
 
+    public static final String DEFAULT_ROLE_MEMBERSHIP = "default_role_membership";
+
     public Properties parseProperties() throws ConfigurationException
     {
         Properties properties = new Properties();

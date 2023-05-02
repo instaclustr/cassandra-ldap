@@ -118,7 +118,7 @@ public class LDAPCassandraRoleManager extends CassandraRoleManager
                 {
                     if (systemAuthRoles.roleMissing(ldapAdminRole))
                     {
-                        systemAuthRoles.createRole(ldapAdminRole, true);
+                        systemAuthRoles.createRole(ldapAdminRole, true, null);
                         logger.info("Created LDAP admin role '{}'", ldapAdminRole);
                     } else
                     {

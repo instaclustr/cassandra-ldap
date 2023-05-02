@@ -10,7 +10,7 @@ public class Cassandra22LDAPIntegrationTest extends AbstractLDAPTest {
 
     @Override
     public String getImplementationGAV() {
-        return "com.instaclustr:cassandra-ldap-" + getCassandraVersion() + ":1.0.2";
+        return "com.instaclustr:cassandra-ldap-" + getCassandraVersion() + ":1.1.0";
     }
 
     @Test

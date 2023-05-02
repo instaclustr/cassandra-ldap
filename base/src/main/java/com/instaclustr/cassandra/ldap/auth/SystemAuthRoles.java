@@ -8,7 +8,7 @@ public interface SystemAuthRoles {
 
     boolean roleMissing(String dn);
 
-    void createRole(String roleName, boolean superUser);
+    void createRole(String roleName, boolean superUser, String defaultRoleMembership);
 
     boolean hasAdminRole(String role);
 

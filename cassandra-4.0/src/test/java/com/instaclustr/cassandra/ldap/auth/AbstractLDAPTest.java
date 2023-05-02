@@ -59,6 +59,14 @@ import static org.testng.Assert.*;
 public abstract class AbstractLDAPTest {
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractLDAPTest.class);
+    private static final String cassandraAdminUser = "cassandra";
+    private static final String cassandraAdminPassword = "cassandra";
+    private static final String cassandraDataCenter1 = "datacenter1";
+    private static final String testUserName = "bill";
+    private static final String testUserPassword = "test";
+    private static final String testUserDn = "cn=bill,dc=example,dc=org";
+    private static final String defaultRoleName = "default_role";
+    private static final String basicQuery = "SELECT * FROM system.local;";
 
     protected void testLDAPinternal() throws Exception {
         try (final GenericContainer ldapContainer = prepareLdapContainer();
@@ -67,20 +75,63 @@ public abstract class AbstractLDAPTest {
             context.start();
 
             context.execute(context.firstNode,
-                    "cassandra",
-                    "cassandra",
-                    "ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2':1};", "datacenter1", false);
+                    cassandraAdminUser,
+                    cassandraAdminPassword,
+                    "ALTER KEYSPACE system_auth WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 1, 'datacenter2':1};", cassandraDataCenter1, false);
 
             logger.info("[first node]: login via cassandra");
-            context.execute(context.firstNode, "cassandra", "cassandra", "select * from system_auth.roles", "datacenter1", true);
+            context.execute(context.firstNode, cassandraAdminUser, cassandraAdminPassword, "select * from system_auth.roles", cassandraDataCenter1, true);
             logger.info("[first node]: login bill");
-            context.execute(context.firstNode, "bill", "test", "select * from system.local", "datacenter1", true);
+            context.execute(context.firstNode, testUserName, testUserPassword, basicQuery, cassandraDataCenter1, true);
 
             logger.info("[second node]: login bill");
-            context.execute(context.secondNode, "bill", "test", "select * from system.local", "datacenter2", true);
+            context.execute(context.secondNode, testUserName, testUserPassword, basicQuery, "datacenter2", true);
+
+            testDefaultRoleMembership(ldapContainer, context);
         } catch (final Exception ex) {
             fail("Exception occurred!", ex);
         }
+    }
+
+    protected void testDefaultRoleMembership(GenericContainer ldapContainer, CassandraClusterContext context) throws Exception
+    {
+        // Create the default role
+        context.simpleExecute(
+            context.firstNode,
+            cassandraAdminUser,
+            cassandraAdminPassword,
+            String.format("CREATE ROLE '%s';", defaultRoleName),
+            cassandraDataCenter1
+        );
+
+        // Delete the user if it already exists
+        context.simpleExecute(
+            context.firstNode,
+            cassandraAdminUser,
+            cassandraAdminPassword,
+            String.format("DROP ROLE IF EXISTS '%s';", testUserDn),
+            cassandraDataCenter1
+        );
+
+        // Simulate a Logon as the user
+        context.simpleExecute(
+            context.firstNode,
+            testUserName,
+            testUserPassword,
+            basicQuery,
+            cassandraDataCenter1
+        );
+
+        // Check that the default role has been added to the user
+        assertTrue(
+            context.simpleExecute(
+                context.firstNode,
+                cassandraAdminUser,
+                cassandraAdminPassword,
+                String.format("LIST ROLES OF '%s';", testUserDn),
+                cassandraDataCenter1
+            ).all().stream().anyMatch(row -> row.getString("role").equals(defaultRoleName))
+        );
     }
 
     public abstract String getCassandraVersion();
@@ -150,6 +201,21 @@ public abstract class AbstractLDAPTest {
                 }
             } catch (final Exception ex) {
                 fail("Failed to execute a request!", ex);
+            }
+        }
+
+        public synchronized ResultSet simpleExecute(Cassandra node,
+                                                    String username,
+                                                    String password,
+                                                    String query,
+                                                    String dc)
+        {
+            try (final Session session = Cluster.builder()
+                    .addContactPoint(node.getSettings().getAddress().getHostAddress())
+                    .withLoadBalancingPolicy(new DCAwareRoundRobinPolicy.Builder().withLocalDc(dc).build())
+                    .withAuthProvider(new PlainTextAuthProvider(username, password))
+                    .build().connect()) {
+                return session.execute(query);
             }
         }
 

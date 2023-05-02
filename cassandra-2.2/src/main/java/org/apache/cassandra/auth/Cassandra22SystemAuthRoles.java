@@ -15,6 +15,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.cql3.statements.CreateRoleStatement;
+import org.apache.cassandra.cql3.statements.GrantRoleStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -34,6 +35,8 @@ public class Cassandra22SystemAuthRoles implements SystemAuthRoles {
     public static final String SELECT_ROLE_STATEMENT = "SELECT role FROM %s.%s where role = ?";
 
     public static final String CREATE_ROLE_STATEMENT_WITH_LOGIN = "CREATE ROLE IF NOT EXISTS \"%s\" WITH LOGIN = true AND SUPERUSER = %s";
+
+    public static final String GRANT_ROLE_STATEMENT = "GRANT '%s' TO '%s'";
 
     private ClientState clientState;
 
@@ -60,13 +63,32 @@ public class Cassandra22SystemAuthRoles implements SystemAuthRoles {
         return rows.result.isEmpty();
     }
 
-    public void createRole(String roleName, boolean superUser)
+    public void createRole(String roleName, boolean superUser, String defaultRoleMembership)
     {
         final CreateRoleStatement createStmt = (CreateRoleStatement) QueryProcessor.getStatement(format(CREATE_ROLE_STATEMENT_WITH_LOGIN, roleName, superUser),
                                                                                                  getClientState()).statement;
 
         createStmt.execute(new QueryState(getClientState()),
                            QueryOptions.forInternalCalls(LOCAL_ONE, singletonList(ByteBufferUtil.bytes(roleName))));
+
+        if (defaultRoleMembership != null)
+        {
+            if (roleMissing(defaultRoleMembership))
+            {
+                logger.warn("Unable to add user to default role {} because it doesn't exist.", defaultRoleMembership);
+            }
+            else
+            {
+                logger.debug("Adding user {} to default role {}", roleName, defaultRoleMembership);
+                final GrantRoleStatement grantRoleStmt = (GrantRoleStatement) QueryProcessor.getStatement(format(GRANT_ROLE_STATEMENT,
+                                                                                                                 defaultRoleMembership,
+                                                                                                                 roleName),
+                                                                                                          getClientState()).statement;
+
+                grantRoleStmt.execute(new QueryState(getClientState()),
+                                      QueryOptions.forInternalCalls(LOCAL_ONE, singletonList(ByteBufferUtil.bytes(roleName))));
+            }
+        }
     }
 
     public boolean hasAdminRole(String role) throws RequestExecutionException

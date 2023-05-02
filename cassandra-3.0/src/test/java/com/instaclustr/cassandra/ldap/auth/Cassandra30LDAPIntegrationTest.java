@@ -10,7 +10,7 @@ public class Cassandra30LDAPIntegrationTest extends AbstractLDAPTest {
 
     @Override
     public String getImplementationGAV() {
-        return "com.instaclustr:cassandra-ldap-" + getCassandraVersion() + ":1.0.0";
+        return "com.instaclustr:cassandra-ldap-" + getCassandraVersion() + ":1.1.0";
     }
 
     @Test
