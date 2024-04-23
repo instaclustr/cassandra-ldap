@@ -93,6 +93,9 @@ The content of the configuration file is as follows:
 
 |default_role_membership
 |A role to add new LDAP users to by default. Defaults to empty (users will not be added to any role).
+
+|cassandra_ldap_admin_user
+|name of a user/role which will be considered a default superuser, instead of `cassandra`. Please consult "How it Works" section to know more about the usage.
 |===
 
 
@@ -165,14 +168,14 @@ authentication using a specified service account. This service account should be
 file using the `service_dn` and `service_password` properties. If `service_dn` is set, such a role will be created in database,
 when not already present, upon node's start.
 
-`service_dn` account, which will be automatically created, will be super user in Cassandra.
+`service_dn` account, which will be automatically created, will be superuser in Cassandra.
 
-All "normal" roles are not affected—they behave exactly as you are used to.
+All "normal" roles are not affected - they behave exactly as you are used to.
 
 If the LDAP server connection is lost or there is another communication error while talking to LDAP server,
 the operator still has a possibility of logging in via `cassandra` user as usual, and until the LDAP server is not back again;
 Users meant to be authenticated against the LDAP server will not be able to log in but all "normal" users will be able to
-login and the disruption of LDAP communication will not affect their ability to do so as they live in Cassandra natively.
+log in and the disruption of LDAP communication will not affect their ability to do so as they live in Cassandra natively.
 
 In case a user specifies just `test` as login name (or any other name, for that matter), it will try to
 authenticate against database first and if not successful against LDAP using filter `filter_template` which defaults to `(cn=%s)`

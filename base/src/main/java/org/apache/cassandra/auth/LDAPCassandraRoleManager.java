@@ -18,6 +18,7 @@
 package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
+import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER_SYSTEM_PROPERTY;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CONSISTENCY_FOR_ROLE;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.DEFAULT_CONSISTENCY_FOR_ROLE;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.LDAP_DN;
@@ -76,7 +77,7 @@ public class LDAPCassandraRoleManager extends CassandraRoleManager
 
         systemAuthRoles = ServiceUtils.getService(SystemAuthRoles.class, null);
 
-        final String dbaRole = System.getProperty(CASSANDRA_LDAP_ADMIN_USER, "cassandra");
+        final String dbaRole = properties.getProperty(CASSANDRA_LDAP_ADMIN_USER);
         logger.info("DB admin role is {}", dbaRole);
 
         final String ldapAdminRole = properties.getProperty(LDAP_DN);

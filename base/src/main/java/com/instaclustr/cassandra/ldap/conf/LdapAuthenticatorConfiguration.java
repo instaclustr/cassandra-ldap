@@ -58,7 +58,11 @@ public final class LdapAuthenticatorConfiguration
 
     public static final String DEFAULT_CONTEXT_FACTORY = "com.sun.jndi.ldap.LdapCtxFactory";
 
-    public static final String CASSANDRA_LDAP_ADMIN_USER = "cassandra.ldap.admin.user";
+    // the one read from system properties by -Dcassandra.ldap.admin.user=xyz
+    public static final String CASSANDRA_LDAP_ADMIN_USER_SYSTEM_PROPERTY = "cassandra.ldap.admin.user";
+    // the one read from the configuration file,
+    // if the above system property is specified, it will overwrite the property in the file
+    public static final String CASSANDRA_LDAP_ADMIN_USER = "cassandra_ldap_admin_user";
 
     public static final String CONSISTENCY_FOR_ROLE = "consistency_for_role";
     public static final String DEFAULT_CONSISTENCY_FOR_ROLE = "LOCAL_ONE";
@@ -143,6 +147,12 @@ public final class LdapAuthenticatorConfiguration
 
         properties.put(LdapAuthenticatorConfiguration.CONTEXT_FACTORY_PROP, properties.getProperty(CONTEXT_FACTORY_PROP, DEFAULT_CONTEXT_FACTORY));
         properties.put(LdapAuthenticatorConfiguration.LDAP_URI_PROP, properties.getProperty(LDAP_URI_PROP));
+
+        String adminUserFromProperty = System.getProperty(CASSANDRA_LDAP_ADMIN_USER_SYSTEM_PROPERTY);
+        if (adminUserFromProperty != null)
+            properties.put(LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER, adminUserFromProperty);
+
+        properties.putIfAbsent(LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER, "cassandra");
 
         return properties;
     }

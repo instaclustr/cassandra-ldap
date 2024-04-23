@@ -19,6 +19,7 @@ package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
+import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER_SYSTEM_PROPERTY;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.DEFAULT_ROLE_MEMBERSHIP;
 import static com.instaclustr.cassandra.ldap.utils.ServiceUtils.getService;
 import static java.lang.Boolean.parseBoolean;
@@ -86,7 +87,7 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
 
         cacheDelegate = getService(CacheDelegate.class, null);
 
-        final String adminRole = System.getProperty(CASSANDRA_LDAP_ADMIN_USER, "cassandra");
+        final String adminRole = properties.getProperty(CASSANDRA_LDAP_ADMIN_USER);
 
         while (true)
         {
