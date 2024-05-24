@@ -211,6 +211,7 @@ public class DefaultLDAPServer extends LDAPUserRetriever
         }
         catch (final Exception ex)
         {
+            logger.debug(String.format("Error encountered when authenticating via LDAP %s", ex.getMessage()));
             throw new LDAPAuthFailedException(ExceptionCode.UNAUTHORIZED, "Not possible to login " + user.getUsername(), ex);
         }
     }
