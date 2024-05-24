@@ -104,7 +104,7 @@ public class DefaultLDAPServer extends LDAPUserRetriever
             final String filterTemplate = properties.getProperty(LdapAuthenticatorConfiguration.FILTER_TEMPLATE);
             final String filter = format(filterTemplate, username);
 
-            logger.debug(String.format("User name is %s, going to use filter: %s", username, filter));
+            logger.debug("User name is {}, going to use filter: {}", username, filter);
 
             String dn = null;
 
@@ -133,7 +133,7 @@ public class DefaultLDAPServer extends LDAPUserRetriever
                                                                 + "User likely does not exist or connection to LDAP server is invalid.", filter, resolvedDns));
                 }
 
-                logger.debug("Returning DN: " + resolvedDns.get(0));
+                logger.debug("Returning DN: {}", resolvedDns.get(0));
 
                 return dn;
             } catch (final NamingException ex)
@@ -186,7 +186,7 @@ public class DefaultLDAPServer extends LDAPUserRetriever
         {
             final String ldapDn = context.searchLdapDN(user.getUsername());
 
-            logger.debug(String.format("Resolved LDAP DN: %s", ldapDn));
+            logger.debug("Resolved LDAP DN: {}", ldapDn);
 
             final Hashtable<String, String> env = getUserEnv(ldapDn,
                                                              user.getPassword(),
@@ -195,7 +195,7 @@ public class DefaultLDAPServer extends LDAPUserRetriever
 
             try (final CloseableLdapContext ldapContext = new CloseableLdapContext(new InitialDirContext(env)))
             {
-                logger.debug("Logging to LDAP with {} was ok!", user.toString());
+                logger.debug("Logging to LDAP with {} was ok!", user);
 
                 final User foundUser = new User(user.getUsername(),
                                           hasher.hashPassword(user.getPassword(),
@@ -211,6 +211,7 @@ public class DefaultLDAPServer extends LDAPUserRetriever
         }
         catch (final Exception ex)
         {
+            logger.debug("Error encountered when authenticating via LDAP {}", ex.getMessage());
             throw new LDAPAuthFailedException(ExceptionCode.UNAUTHORIZED, "Not possible to login " + user.getUsername(), ex);
         }
     }
