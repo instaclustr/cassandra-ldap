@@ -15,6 +15,11 @@ public class Cassandra41LDAPIntegrationTest extends AbstractLDAPTest {
 
     @Test
     public void ldapTest() throws Exception {
-        super.testLDAPinternal();
+        super.testLDAPinternal(false);
+    }
+
+    @Test
+    public void ldapWithTLSTest() throws Exception {
+        super.testLDAPinternal(true);
     }
 }

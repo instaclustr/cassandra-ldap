@@ -25,7 +25,14 @@ import javax.naming.NamingException;
 import javax.naming.directory.InitialDirContext;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
+
 import java.io.IOException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
@@ -65,6 +72,12 @@ public class DefaultLDAPServer extends LDAPUserRetriever
             ldapProperties.put(Context.PROVIDER_URL, properties.getProperty(LdapAuthenticatorConfiguration.LDAP_URI_PROP));
             ldapProperties.put(Context.SECURITY_PRINCIPAL, serviceDN);
             ldapProperties.put(Context.SECURITY_CREDENTIALS, servicePass);
+
+            if (properties.containsKey("ldap_truststore"))
+            {
+                System.setProperty("javax.net.ssl.trustStore", properties.getProperty("ldap_truststore"));
+                System.setProperty("javax.net.ssl.trustStorePassword", "changeit");
+            }
 
             try
             {

@@ -22,6 +22,7 @@ import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
+import com.github.dockerjava.api.command.CreateContainerCmd;
 import com.github.nosan.embedded.cassandra.Cassandra;
 import com.github.nosan.embedded.cassandra.CassandraBuilder;
 import com.github.nosan.embedded.cassandra.WorkingDirectoryCustomizer;
@@ -30,6 +31,9 @@ import com.github.nosan.embedded.cassandra.commons.ClassPathResource;
 import com.github.nosan.embedded.cassandra.commons.FileSystemResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.github.nosan.embedded.cassandra.commons.FileUtils;
+import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.Container;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.HostPortWaitStrategy;
@@ -47,6 +51,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 import static com.github.nosan.embedded.cassandra.WorkingDirectoryCustomizer.addResource;
 import static java.util.Arrays.stream;
@@ -68,9 +73,10 @@ public abstract class AbstractLDAPTest {
     private static final String defaultRoleName = "default_role";
     private static final String basicQuery = "SELECT * FROM system.local;";
 
-    protected void testLDAPinternal() throws Exception {
-        try (final GenericContainer ldapContainer = prepareLdapContainer();
-             final CassandraClusterContext context = getClusterContext(true, ldapContainer.getMappedPort(389))) {
+    protected void testLDAPinternal(boolean withTLS) throws Exception {
+        final int port = withTLS ? 636 : 389;
+        try (final GenericContainer ldapContainer = prepareLdapContainer(port, withTLS);
+             final CassandraClusterContext context = getClusterContext(true, ldapContainer.getMappedPort(port), withTLS)) {
 
             context.start();
 
@@ -138,10 +144,10 @@ public abstract class AbstractLDAPTest {
 
     public abstract String getImplementationGAV();
 
-    private CassandraClusterContext getClusterContext(boolean ldapEnabled, int ldapPort) {
+    private CassandraClusterContext getClusterContext(boolean ldapEnabled, int ldapPort, boolean secure) {
         CassandraClusterContext cassandraClusterContext = new CassandraClusterContext();
-        cassandraClusterContext.firstNode = configure(ldapEnabled, "first", ldapPort).build();
-        cassandraClusterContext.secondNode = configure(ldapEnabled, "second", ldapPort).build();
+        cassandraClusterContext.firstNode = configure(ldapEnabled, "first", ldapPort, secure).build();
+        cassandraClusterContext.secondNode = configure(ldapEnabled, "second", ldapPort, secure).build();
         return cassandraClusterContext;
     }
 
@@ -244,14 +250,14 @@ public abstract class AbstractLDAPTest {
         }
     }
 
-    protected CassandraBuilder configure(final boolean ldap, final String node, final int ldapPort) {
+    protected CassandraBuilder configure(final boolean ldap, final String node, final int ldapPort, boolean secure) {
         final List<Path> pluginJars = stream(resolver()
                 .loadPomFromFile("pom.xml")
                 .resolve(getImplementationGAV())
                 .withTransitivity()
                 .asFile()).map(file -> file.toPath().toAbsolutePath()).collect(toList());
 
-        final File ldapPropertiesFile = getLdapPropertiesFile(ldapPort);
+        final File ldapPropertiesFile = getLdapPropertiesFile(ldapPort, secure);
 
         return new CassandraBuilder()
                 .version(getCassandraVersion())
@@ -276,13 +282,31 @@ public abstract class AbstractLDAPTest {
                 .workingDirectoryDestroyer(WorkingDirectoryDestroyer.doNothing());
     }
 
-
-    protected GenericContainer prepareLdapContainer() throws Exception {
-        GenericContainer ldapContainer = new GenericContainer(DockerImageName.parse("osixia/openldap:latest"))
+    protected GenericContainer prepareLdapContainer(int port, boolean withTLS) throws Exception {
+        GenericContainer ldapContainer = new GenericContainer(DockerImageName.parse("osixia/openldap:1.5.0"))
                 .withCopyFileToContainer(MountableFile.forHostPath("../conf/new-user.ldif"), "/new-user.ldif")
                 .withEnv("LDAP_ADMIN_PASSWORD", "admin")
-                .withExposedPorts(389)
+                .withExposedPorts(port)
+                .withCreateContainerCmdModifier((Consumer<CreateContainerCmd>) cmd -> cmd.withHostName("ldap.my-company.com"))
                 .waitingFor(new HostPortWaitStrategy());
+
+        if (withTLS) {
+            Path tempDirectory = Files.createTempDirectory("cassandra-ldap-plugin");
+
+            Files.copy(Paths.get("../conf/tls-server/dhparam.pem"), tempDirectory.resolve("dhparam.pem"));
+            Files.copy(Paths.get("../conf/tls-server/my-ca.crt"), tempDirectory.resolve("my-ca.crt"));
+            Files.copy(Paths.get("../conf/tls-server/my-ldap.crt"), tempDirectory.resolve("my-ldap.crt"));
+            Files.copy(Paths.get("../conf/tls-server/my-ldap.key"), tempDirectory.resolve("my-ldap.key"));
+
+            ldapContainer.withFileSystemBind(tempDirectory.toAbsolutePath().toString(), "/container/service/slapd/assets/certs", BindMode.READ_WRITE);
+
+            ldapContainer.withEnv("LDAP_LOG_LEVEL", "-1");
+            ldapContainer.withEnv("LDAP_TLS_DH_PARAM_FILENAME", "dhparam.pem");
+            ldapContainer.withEnv("LDAP_TLS_CRT_FILENAME", "my-ldap.crt");
+            ldapContainer.withEnv("LDAP_TLS_KEY_FILENAME", "my-ldap.key");
+            ldapContainer.withEnv("LDAP_TLS_CA_CRT_FILENAME", "my-ca.crt");
+            ldapContainer.withEnv("LDAP_TLS_VERIFY_CLIENT", "try");
+        }
 
         ldapContainer.start();
 
@@ -316,7 +340,7 @@ public abstract class AbstractLDAPTest {
                 "ldap://127.0.0.1:389");
     }
 
-    protected File getLdapPropertiesFile(int ldapPort) {
+    protected File getLdapPropertiesFile(int ldapPort, boolean secure) {
         try {
             File ldapPropertiesFile = Paths.get("../conf/ldap.properties").toFile();
             Properties ldapProperties = new Properties();
@@ -327,7 +351,14 @@ public abstract class AbstractLDAPTest {
                 throw new IllegalStateException("Unable to read content of ldap.properties!");
             }
 
-            ldapProperties.setProperty("ldap_uri", "ldap://127.0.0.1:" + ldapPort + "/dc=example,dc=org");
+            String protocol = "ldap";
+            if (secure)
+                protocol = "ldaps";
+
+            ldapProperties.setProperty("ldap_uri", protocol + "://ldap.my-company.com:" + ldapPort + "/dc=example,dc=org");
+
+            if (secure)
+                ldapProperties.setProperty("ldap_truststore", Paths.get("../conf/tls-client/myTrustStore.jks").toFile().getAbsolutePath());
 
             File tempFile = Files.createTempFile("ldap-test", ".properties").toFile();
             ldapProperties.store(new FileWriter(tempFile, true), "comments");
