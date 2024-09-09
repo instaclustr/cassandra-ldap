@@ -26,7 +26,8 @@ There are five implementation modules:
 * cassandra-3.0 - builds against version 3.0.28
 * cassandra-3.11 - builds against version 3.11.14
 * cassandra-4.0 - builds against version 4.0.7
-* cassandra-4.1 - builds aganst version 4.1.0
+* cassandra-4.1 - builds aganist version 4.1.0
+* cassandra-5.0 - builds aganist version 5.0.0
 
 Project is built as:
 
