@@ -21,6 +21,11 @@
     <name>Cassandra LDAP Authenticator common code</name>
     <description>Common code for Apache Cassandra LDAP plugin</description>
 
+    <properties>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.apache.cassandra</groupId>

@@ -2,13 +2,13 @@ version: 2.1
 jobs:
   build:
     machine:
-      image: ubuntu-2004:202201-02
+      image: ubuntu-2204:2024.05.1
 
     working_directory: ~/cassandra-ldap
 
     environment:
       MAVEN_OPTS: -Xmx3200m
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
 
     steps:
 
@@ -23,126 +23,19 @@ jobs:
             - ~/.m2
           key: m2-{{ checksum "pom.xml" }}
 
-      - run: sudo apt install openjdk-8-jdk
-      - run: mvn --version && whereis java && mvn clean install -Dversion.cassandra22=2.2.19 -Dversion.cassandra30=3.0.28 -Dversion.cassandra311=3.11.14 -Dversion.cassandra4=4.0.7 -Dversion.cassandra41=4.1.0
+      - run: sudo apt-get update && sudo apt install openjdk-11-jdk
+      - run: mvn --version && whereis java && mvn clean install -Dversion.cassandra4=4.0.7 -Dversion.cassandra41=4.1.0 -Dversion.cassandra50=5.0.0
 
       - persist_to_workspace:
           root: ~/cassandra-ldap
           paths:
-            - "cassandra-2.2/target/cassandra-ldap-2.2**.jar"
-            - "cassandra-3.0/target/cassandra-ldap-3.0*.jar"
-            - "cassandra-3.11/target/cassandra-ldap-3.11*.jar"
             - "cassandra-4.0/target/cassandra-ldap-4.0*.jar"
             - "cassandra-4.1/target/cassandra-ldap-4.1*.jar"
-
-  build-2-2:
-    machine:
-      image: ubuntu-2004:202201-02
-
-    working_directory: ~/cassandra-ldap
-
-    environment:
-      MAVEN_OPTS: -Xmx3200m
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-
-    steps:
-
-      - checkout
-
-      - restore_cache:
-          keys:
-            - m2-{{ checksum "pom.xml" }}
-            - m2-
-
-      # Java 8 for Cassandra as image contains Java 11
-      - run: sudo apt install openjdk-8-jdk
-      - run: mvn clean install -DoutputDirectory=/tmp/artifacts -DskipTests
-
-      - save_cache:
-          paths:
-            - ~/.m2
-          key: m2-{{ checksum "pom.xml" }}
-
-      - persist_to_workspace:
-          root: /tmp/artifacts
-          paths:
-            - "cassandra-ldap-2.2*.jar"
-            - "cassandra-ldap-2.2*.deb"
-            - "cassandra-ldap-2.2*.rpm"
-
-  build-3-0:
-    machine:
-      image: ubuntu-2004:202201-02
-
-    working_directory: ~/cassandra-ldap
-
-    environment:
-      MAVEN_OPTS: -Xmx3200m
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-
-    steps:
-
-      - checkout
-
-      - restore_cache:
-          keys:
-            - m2-{{ checksum "pom.xml" }}
-            - m2-
-
-      # Java 8 for Cassandra as image contains Java 11
-      - run: sudo apt install openjdk-8-jdk
-      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
-
-      - save_cache:
-          paths:
-            - ~/.m2
-          key: m2-{{ checksum "pom.xml" }}
-
-      - persist_to_workspace:
-          root: /tmp/artifacts
-          paths:
-            - "cassandra-ldap-3.0*.jar"
-            - "cassandra-ldap-3.0*.deb"
-            - "cassandra-ldap-3.0*.rpm"
-
-  build-3-11:
-    machine:
-      image: ubuntu-2004:202201-02
-
-    working_directory: ~/cassandra-ldap
-
-    environment:
-      MAVEN_OPTS: -Xmx3200m
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-
-    steps:
-
-      - checkout
-
-      - restore_cache:
-          keys:
-            - m2-{{ checksum "pom.xml" }}
-            - m2-
-
-      # Java 8 for Cassandra as image contains Java 11
-      - run: sudo apt install openjdk-8-jdk
-      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
-
-      - save_cache:
-          paths:
-            - ~/.m2
-          key: m2-{{ checksum "pom.xml" }}
-
-      - persist_to_workspace:
-          root: /tmp/artifacts
-          paths:
-            - "cassandra-ldap-3.11*.jar"
-            - "cassandra-ldap-3.11*.deb"
-            - "cassandra-ldap-3.11*.rpm"
+            - "cassandra-5.0/target/cassandra-ldap-5.0*.jar"
 
   build-4-0:
     machine:
-      image: ubuntu-2004:202201-02
+      image: ubuntu-2204:2024.05.1
 
     working_directory: ~/cassandra-ldap
 
@@ -159,8 +52,7 @@ jobs:
             - m2-{{ checksum "pom.xml" }}
             - m2-
 
-      # Java 8 for Cassandra as image contains Java 11
-      - run: sudo apt install openjdk-8-jdk
+      - run: sudo apt-get update && sudo apt install openjdk-11-jdk
       - run: mvn clean install -DoutputDirectory=/tmp/artifacts
 
       - save_cache:
@@ -177,7 +69,7 @@ jobs:
 
   build-4-1:
     machine:
-      image: ubuntu-2004:202201-02
+      image: ubuntu-2204:2024.05.1
 
     working_directory: ~/cassandra-ldap
 
@@ -194,8 +86,7 @@ jobs:
             - m2-{{ checksum "pom.xml" }}
             - m2-
 
-      # Java 8 for Cassandra as image contains Java 11
-      - run: sudo apt install openjdk-8-jdk
+      - run: sudo apt-get update && sudo apt install openjdk-11-jdk
       - run: mvn clean install -DoutputDirectory=/tmp/artifacts
 
       - save_cache:
@@ -210,71 +101,39 @@ jobs:
             - "cassandra-ldap-4.1*.deb"
             - "cassandra-ldap-4.1*.rpm"
 
-  publish-github-release-2-2:
-    docker:
-      - image: cimg/go:1.17
-    steps:
-      - attach_workspace:
-          at: ./artifacts
-      - run:
-          name: "Publish 2.2 Release on GitHub"
-          command: |
-            set -xue
-            go get github.com/tcnksm/ghr
-            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
+  build-5-0:
+    machine:
+      image: ubuntu-2204:2024.05.1
 
+    working_directory: ~/cassandra-ldap
 
-  publish-github-release-3-0:
-    docker:
-      - image: cimg/go:1.17
-    steps:
-      - attach_workspace:
-          at: ./artifacts
-      - run:
-          name: "Publish 3.0 Release on GitHub"
-          command: |
-            set -xue
-            go get github.com/tcnksm/ghr
-            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
+    environment:
+      MAVEN_OPTS: -Xmx3200m
+      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 
-  publish-github-release-3-11:
-    docker:
-      - image: cimg/go:1.17
     steps:
-      - attach_workspace:
-          at: ./artifacts
-      - run:
-          name: "Publish 3.11 Release on GitHub"
-          command: |
-            set -xue
-            go get github.com/tcnksm/ghr
-            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
 
-  publish-github-release-4-0:
-    docker:
-      - image: cimg/go:1.17
-    steps:
-      - attach_workspace:
-          at: ./artifacts
-      - run:
-          name: "Publish 4.0 Release on GitHub"
-          command: |
-            set -xue
-            go get github.com/tcnksm/ghr
-            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
+      - checkout
 
-  publish-github-release-4-1:
-    docker:
-      - image: cimg/go:1.17
-    steps:
-      - attach_workspace:
-          at: ./artifacts
-      - run:
-          name: "Publish 4.1 Release on GitHub"
-          command: |
-            set -xue
-            go get github.com/tcnksm/ghr
-            ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} -delete ${CIRCLE_TAG} ./artifacts/
+      - restore_cache:
+          keys:
+            - m2-{{ checksum "pom.xml" }}
+            - m2-
+
+      - run: sudo apt-get update && sudo apt install openjdk-11-jdk
+      - run: mvn clean install -DoutputDirectory=/tmp/artifacts
+
+      - save_cache:
+          paths:
+            - ~/.m2
+          key: m2-{{ checksum "pom.xml" }}
+
+      - persist_to_workspace:
+          root: /tmp/artifacts
+          paths:
+            - "cassandra-ldap-5.0*.jar"
+            - "cassandra-ldap-5.0*.deb"
+            - "cassandra-ldap-5.0*.rpm"
 
 workflows:
   version: 2
@@ -284,24 +143,6 @@ workflows:
           filters:
             tags:
               only: /^v\d+\.\d+\.\d+$/
-      - build-2-2:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v2.2.\d+\-\d+\.\d+\.\d+$/
-      - build-3-0:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v3.0.\d+\-\d+\.\d+\.\d+$/
-      - build-3-11:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v3.11.\d+\-\d+\.\d+\.\d+$/
       - build-4-0:
           filters:
             branches:
@@ -314,43 +155,9 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v4.1.\d+-\d+\.\d+\.\d+$/
-      - publish-github-release-2-2:
-          requires:
-            - build-2-2
+      - build-5-0:
           filters:
             branches:
               ignore: /.*/
             tags:
-              only: /^v2.2.\d+\-\d+\.\d+\.\d+$/
-      - publish-github-release-3-0:
-          requires:
-            - build-3-0
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v3.0.\d+\-\d+\.\d+\.\d+$/
-      - publish-github-release-3-11:
-          requires:
-            - build-3-11
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v3.11.\d+\-\d+\.\d+\.\d+$/
-      - publish-github-release-4-0:
-          requires:
-            - build-4-0
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v4.0.\d+-\d+\.\d+\.\d+$/
-      - publish-github-release-4-1:
-          requires:
-            - build-4-1
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v4.1.\d+-\d+\.\d+\.\d+$/
+              only: /^v5.0.\d+-\d+\.\d+\.\d+$/

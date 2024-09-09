@@ -27,6 +27,9 @@
         <version.testng>6.14.3</version.testng>
         <version.awaitility>4.0.3</version.awaitility>
         <version.testcontainers>1.15.3</version.testcontainers>
+
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
     </properties>
 
     <dependencyManagement>
@@ -144,7 +147,7 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>${maven.shade.plugin.version}</version>
                 <configuration>
-                    <finalName>cassandra-ldap-${version.cassandra41}-${project.version}</finalName>
+                    <finalName>cassandra-ldap-${version.cassandra50}-${project.version}</finalName>
                 </configuration>
             </plugin>
             <plugin>
