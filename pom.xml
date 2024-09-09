@@ -10,9 +10,9 @@
 
     <modules>
         <module>base</module>
-        <module>cassandra-2.2</module>
-        <module>cassandra-3.0</module>
-        <module>cassandra-3.11</module>
+<!--        <module>cassandra-2.2</module>-->
+<!--        <module>cassandra-3.0</module>-->
+<!--        <module>cassandra-3.11</module>-->
         <module>cassandra-4.0</module>
         <module>cassandra-4.1</module>
         <module>cassandra-5.0</module>
@@ -75,9 +75,6 @@
         <outputDirectory>${project.build.directory}</outputDirectory>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
     <build>

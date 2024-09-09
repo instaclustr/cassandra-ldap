@@ -12,6 +12,12 @@ and create users based on a configured LDAP server. This implementation provides
 Role management must be performed through the usual Cassandra role management— CassandraAuthorizer.
 See **How it works** for more details.
 
+## Deprecation note
+
+By releasing of Cassandra 5.0, the Cassandra team has stopped to actively develop / support Cassandra versions
+3.0 and 3.11. We keep the source code of respective 3.0 and 3.11 modules in the repository, but they are
+commented out from main `pom.xml` as they require Java 8 but Cassandra 5.0 requires Java 11 and the testing framework we use for running embedded Cassandra can not deal with Java 11 while testing Cassandra 3.x even we set source and target for Maven to 1.8. If you want to build 3.x modules, please be sure you run Java 8 and you build only the respective module you want.
+
 ## Project Structure and Building
 
 This project consists of 5 modules; the `base` module is the module on which all other implementation modules
