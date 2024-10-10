@@ -10,7 +10,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>cassandra-ldap-4.1.0</artifactId>
+    <artifactId>cassandra-ldap-4.1.7</artifactId>
     <version>1.1.0</version>
 
     <name>Cassandra LDAP Authenticator for Cassandra 4.1</name>
@@ -149,6 +149,15 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <version.cassandra41>${version.cassandra41}</version.cassandra41>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
