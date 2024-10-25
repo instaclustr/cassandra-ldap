@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage.Rows;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -52,7 +53,7 @@ public class Cassandra41UserRetriever extends AbstractCassandraUserRetriever
         return authenticationStatement(clientState, legacyTableExists).execute(QueryState.forInternalCalls(),
                                                                                QueryOptions.forInternalCalls(consistencyForRole(user.getUsername()),
                                                                                                              singletonList(ByteBufferUtil.bytes(user.getUsername()))),
-                                                                               System.nanoTime());
+                                                                               Dispatcher.RequestTime.forImmediateExecution());
     }
 
     @Override

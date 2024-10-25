@@ -40,6 +40,7 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
@@ -134,7 +135,7 @@ public class Cassandra41SystemAuthRoles implements SystemAuthRoles
 
         final ResultMessage.Rows rows = selStmt.execute(new QueryState(getClientState()),
                                                         QueryOptions.forInternalCalls(singletonList(ByteBufferUtil.bytes(dn))),
-                                                        System.nanoTime());
+                                                        Dispatcher.RequestTime.forImmediateExecution());
 
         return rows.result.isEmpty();
     }
@@ -148,7 +149,7 @@ public class Cassandra41SystemAuthRoles implements SystemAuthRoles
 
         createStmt.execute(new QueryState(getClientState()),
                            QueryOptions.forInternalCalls(LOCAL_ONE, singletonList(ByteBufferUtil.bytes(roleName))),
-                           System.nanoTime());
+                           Dispatcher.RequestTime.forImmediateExecution());
 
         if (defaultRoleMembership != null)
         {
@@ -166,7 +167,7 @@ public class Cassandra41SystemAuthRoles implements SystemAuthRoles
 
                 grantRoleStmt.execute(new QueryState(getClientState()),
                                       QueryOptions.forInternalCalls(LOCAL_ONE, singletonList(ByteBufferUtil.bytes(roleName))),
-                                      System.nanoTime());
+                                      Dispatcher.RequestTime.forImmediateExecution());
             }
         }
     }
@@ -180,7 +181,7 @@ public class Cassandra41SystemAuthRoles implements SystemAuthRoles
         ResultMessage.Rows rows = loadRoleStatement.execute(QueryState.forInternalCalls(),
                                                             QueryOptions.forInternalCalls(getConsistencyForRole("cassandra", name, roleConsistencyLevel),
                                                                                           Collections.singletonList(ByteBufferUtil.bytes(name))),
-                                                            System.nanoTime());
+                                                            Dispatcher.RequestTime.forImmediateExecution());
 
         if (rows.result.isEmpty()) {
             return NULL_ROLE;
