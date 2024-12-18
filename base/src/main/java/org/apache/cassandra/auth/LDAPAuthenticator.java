@@ -18,6 +18,7 @@
 package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
+import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.ALLOW_BLANK_PASSWORD_PROP;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER_SYSTEM_PROPERTY;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.DEFAULT_ROLE_MEMBERSHIP;
@@ -136,6 +137,15 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
     {
         try
         {
+
+            if (!Boolean.parseBoolean(properties.getProperty(ALLOW_BLANK_PASSWORD_PROP, "true")))
+            {
+                if (password == null || password.trim().isEmpty())
+                {
+                throw new AuthenticationException("blank password is not supported");
+                }
+            }
+
             final User user = new User(username, password);
 
             final User cachedUser = cacheDelegate.get(user);

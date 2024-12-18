@@ -53,6 +53,9 @@ public final class LdapAuthenticatorConfiguration
 
     public static final String CASSANDRA_AUTH_CACHE_ENABLED_PROP = "auth_cache_enabled";
 
+    // allow as default or disallow empty passwords when try to connect to ldap server - empty passwords make do some unexpected behavior
+    public static final String ALLOW_BLANK_PASSWORD_PROP = "allow_blank_password";
+
     public static final String GENSALT_LOG2_ROUNDS_PROP = "auth_bcrypt_gensalt_log2_rounds";
     public static final int GENSALT_LOG2_ROUNDS_DEFAULT = 10;
 
@@ -133,6 +136,8 @@ public final class LdapAuthenticatorConfiguration
         }
 
         properties.setProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, Boolean.toString(parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP, "true"))));
+
+        properties.setProperty(ALLOW_BLANK_PASSWORD_PROP, Boolean.toString(parseBoolean(properties.getProperty(ALLOW_BLANK_PASSWORD_PROP, "true"))));
 
         properties.setProperty(CONSISTENCY_FOR_ROLE, properties.getProperty(CONSISTENCY_FOR_ROLE, DEFAULT_CONSISTENCY_FOR_ROLE));
 
