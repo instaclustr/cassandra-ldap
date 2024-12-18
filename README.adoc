@@ -103,6 +103,9 @@ The content of the configuration file is as follows:
 
 |cassandra_ldap_admin_user
 |name of a user/role which will be considered a default superuser, instead of `cassandra`. Please consult "How it Works" section to know more about the usage.
+
+|allow_empty_password
+|allow or disallow empty passwords when trying to connect to ldap server to prevent insecure behavior, defaults to `true`
 |===
 
 
