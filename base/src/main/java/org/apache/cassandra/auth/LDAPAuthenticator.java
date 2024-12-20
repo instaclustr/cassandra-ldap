@@ -141,12 +141,8 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
     {
         try
         {
-
-            if (!allow_empty_password)
-            {
-                if (password == null || password.trim().isEmpty())
-                    throw new AuthenticationException("empty password is not supported");
-            }
+            if (!allow_empty_password && password.isEmpty())
+                throw new AuthenticationException("empty password is not supported");
 
             final User user = new User(username, password);
 
