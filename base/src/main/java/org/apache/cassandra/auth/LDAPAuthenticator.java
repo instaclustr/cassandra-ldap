@@ -18,7 +18,7 @@
 package org.apache.cassandra.auth;
 
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_AUTH_CACHE_ENABLED_PROP;
-import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.ALLOW_BLANK_PASSWORD_PROP;
+import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.ALLOW_EMPTY_PASSWORD_PROP;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.CASSANDRA_LDAP_ADMIN_USER_SYSTEM_PROPERTY;
 import static com.instaclustr.cassandra.ldap.conf.LdapAuthenticatorConfiguration.DEFAULT_ROLE_MEMBERSHIP;
@@ -65,6 +65,8 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
 {
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractLDAPAuthenticator.class);
+
+    private boolean allow_empty_password;
 
     protected CacheDelegate cacheDelegate;
 
@@ -115,6 +117,8 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
                            ldapUserRetriever::retrieve,
                            parseBoolean(properties.getProperty(CASSANDRA_AUTH_CACHE_ENABLED_PROP)));
 
+        allow_empty_password = parseBoolean(properties.getProperty(ALLOW_EMPTY_PASSWORD_PROP));
+
         logger.info("{} was initialised", LDAPAuthenticator.class.getName());
     }
 
@@ -138,12 +142,10 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
         try
         {
 
-            if (!Boolean.parseBoolean(properties.getProperty(ALLOW_BLANK_PASSWORD_PROP, "true")))
+            if (!allow_empty_password)
             {
                 if (password == null || password.trim().isEmpty())
-                {
-                throw new AuthenticationException("blank password is not supported");
-                }
+                    throw new AuthenticationException("empty password is not supported");
             }
 
             final User user = new User(username, password);
