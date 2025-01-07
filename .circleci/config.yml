@@ -41,7 +41,7 @@ jobs:
 
     environment:
       MAVEN_OPTS: -Xmx3200m
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
 
     steps:
 
@@ -75,7 +75,7 @@ jobs:
 
     environment:
       MAVEN_OPTS: -Xmx3200m
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
 
     steps:
 
@@ -109,7 +109,7 @@ jobs:
 
     environment:
       MAVEN_OPTS: -Xmx3200m
-      JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
+      JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
 
     steps:
 
