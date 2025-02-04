@@ -5,7 +5,7 @@ import org.testng.annotations.Test;
 public class Cassandra311LDAPIntegrationTest extends AbstractLDAPTest {
     @Override
     public String getCassandraVersion() {
-        return System.getProperty("version.cassandra311", "3.11.14");
+        return System.getProperty("version.cassandra311", "3.11.18");
     }
 
     @Override
