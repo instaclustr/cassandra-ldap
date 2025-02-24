@@ -97,7 +97,7 @@ public class LDAPCassandraRoleManager extends CassandraRoleManager
                 {
                     if (dbaRole.equals("cassandra"))
                     {
-                        throw new IllegalStateException();
+                        throw new IllegalStateException("Role 'cassandra' can not log in");
                     }
                     logger.info("Role '" + dbaRole + "' can not log in, prematurely existing setup, not going to create LDAP admin role {}", ldapAdminRole);
                     return null;
@@ -181,7 +181,7 @@ public class LDAPCassandraRoleManager extends CassandraRoleManager
         }
         catch (RequestExecutionException e)
         {
-            logger.debug("Failed to authorize {} for login permission", role.getRoleName());
+            logger.debug("Failed to authorize " + role.getRoleName() + " for login permission ", e);
             throw new UnauthorizedException("Unable to perform authorization of login permission: " + e.getMessage());
         }
     }

@@ -96,7 +96,7 @@ public class LDAPAuthenticator extends AbstractLDAPAuthenticator
         {
             try
             {
-                if (!systemAuthRoles.hasAdminRole())
+                if (!systemAuthRoles.hasAdminRole(adminRole))
                 {
                     throw new IllegalStateException("Waiting for " + adminRole + " role!");
                 }
