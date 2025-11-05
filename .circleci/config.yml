@@ -24,7 +24,7 @@ jobs:
           key: m2-{{ checksum "pom.xml" }}
 
       - run: sudo apt-get update && sudo apt install openjdk-11-jdk
-      - run: mvn --version && whereis java && mvn clean install -Dversion.cassandra4=4.0.16 -Dversion.cassandra41=4.1.10 -Dversion.cassandra50=5.0.3
+      - run: mvn --version && whereis java && mvn clean install -Dversion.cassandra4=4.0.16 -Dversion.cassandra41=4.1.10 -Dversion.cassandra50=5.0.6
 
       - persist_to_workspace:
           root: ~/cassandra-ldap
@@ -121,7 +121,7 @@ jobs:
             - m2-
 
       - run: sudo apt-get update && sudo apt install openjdk-11-jdk
-      - run: mvn clean install -DoutputDirectory=/tmp/artifacts -Dversion.cassandra50=5.0.3
+      - run: mvn clean install -DoutputDirectory=/tmp/artifacts -Dversion.cassandra50=5.0.6
 
       - save_cache:
           paths:

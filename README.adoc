@@ -33,7 +33,7 @@ There are five implementation modules:
 * cassandra-3.11 - builds against version 3.11.18
 * cassandra-4.0 - builds against version 4.0.16
 * cassandra-4.1 - builds aganist version 4.1.10
-* cassandra-5.0 - builds aganist version 5.0.3
+* cassandra-5.0 - builds aganist version 5.0.6
 
 Project is built as:
 
